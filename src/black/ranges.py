@@ -187,13 +187,15 @@ def convert_unchanged_lines(src_node: Node, lines: Collection[tuple[int, int]]) 
 
 
 def _contains_standalone_comment(node: LN) -> bool:
-    if isinstance(node, Leaf):
-        return node.type == STANDALONE_COMMENT
-    else:
-        for child in node.children:
-            if _contains_standalone_comment(child):
+    stack = [node]
+    while stack:
+        current_node = stack.pop()
+        if isinstance(current_node, Leaf):
+            if current_node.type == STANDALONE_COMMENT:
                 return True
-        return False
+        else:
+            stack.extend(current_node.children)
+    return False
 
 
 class _TopLevelStatementsVisitor(Visitor[None]):
