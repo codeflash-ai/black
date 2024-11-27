@@ -20,24 +20,18 @@ from blib2to3.pgen2.token import ASYNC, NEWLINE
 
 
 def parse_line_ranges(line_ranges: Sequence[str]) -> list[tuple[int, int]]:
-    lines: list[tuple[int, int]] = []
+    lines = []
+    append_line = lines.append
     for lines_str in line_ranges:
-        parts = lines_str.split("-")
-        if len(parts) != 2:
-            raise ValueError(
-                "Incorrect --line-ranges format, expect 'START-END', found"
-                f" {lines_str!r}"
-            )
         try:
-            start = int(parts[0])
-            end = int(parts[1])
+            start_str, end_str = lines_str.split("-")
+            start, end = int(start_str), int(end_str)
+            append_line((start, end))
         except ValueError:
             raise ValueError(
-                "Incorrect --line-ranges value, expect integer ranges, found"
-                f" {lines_str!r}"
+                "Incorrect --line-ranges format or values, expect 'START-END' with"
+                f" integers, found {lines_str!r}"
             ) from None
-        else:
-            lines.append((start, end))
     return lines
 
 
