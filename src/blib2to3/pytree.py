@@ -884,15 +884,19 @@ class WildcardPattern(BasePattern):
         """Special optimized matcher for bare_name."""
         count = 0
         r = {}  # type: _Results
-        done = False
-        max = len(nodes)
-        while not done and count < max:
-            done = True
-            for leaf in self.content:
+        max_len = len(nodes)
+        content = self.content
+        
+        while count < max_len:
+            match_found = False
+            for leaf in content:
                 if leaf[0].match(nodes[count], r):
                     count += 1
-                    done = False
+                    match_found = True
                     break
+            if not match_found:
+                break
+        
         assert self.name is not None
         r[self.name] = nodes[:count]
         return count, r
