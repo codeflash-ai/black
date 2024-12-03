@@ -4,7 +4,6 @@ Parse Python code and perform AST validation.
 
 import ast
 import sys
-import warnings
 from collections.abc import Collection, Iterator
 
 from black.mode import VERSION_TO_FEATURES, Feature, TargetVersion, supports_feature
@@ -126,12 +125,9 @@ def _parse_single_version(
     src: str, version: tuple[int, int], *, type_comments: bool
 ) -> ast.AST:
     filename = "<unknown>"
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", SyntaxWarning)
-        warnings.simplefilter("ignore", DeprecationWarning)
-        return ast.parse(
-            src, filename, feature_version=version, type_comments=type_comments
-        )
+    return ast.parse(
+        src, filename, feature_version=version, type_comments=type_comments
+    )
 
 
 def parse_ast(src: str) -> ast.AST:
