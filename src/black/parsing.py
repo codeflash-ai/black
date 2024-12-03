@@ -15,6 +15,7 @@ from blib2to3.pgen2.grammar import Grammar
 from blib2to3.pgen2.parse import ParseError
 from blib2to3.pgen2.tokenize import TokenError
 from blib2to3.pytree import Leaf, Node
+from src.blib2to3.pgen2.grammar import Grammar
 
 
 class InvalidInput(ValueError):
@@ -23,32 +24,23 @@ class InvalidInput(ValueError):
 
 def get_grammars(target_versions: set[TargetVersion]) -> list[Grammar]:
     if not target_versions:
-        # No target_version specified, so try all grammars.
         return [
-            # Python 3.7-3.9
             pygram.python_grammar_async_keywords,
-            # Python 3.0-3.6
             pygram.python_grammar,
-            # Python 3.10+
             pygram.python_grammar_soft_keywords,
         ]
 
     grammars = []
-    # If we have to parse both, try to parse async as a keyword first
-    if not supports_feature(
-        target_versions, Feature.ASYNC_IDENTIFIERS
-    ) and not supports_feature(target_versions, Feature.PATTERN_MATCHING):
-        # Python 3.7-3.9
+    if Feature.ASYNC_IDENTIFIERS not in VERSION_TO_FEATURES.get(target_versions, ()) and \
+       Feature.PATTERN_MATCHING not in VERSION_TO_FEATURES.get(target_versions, ()):
         grammars.append(pygram.python_grammar_async_keywords)
-    if not supports_feature(target_versions, Feature.ASYNC_KEYWORDS):
-        # Python 3.0-3.6
+    
+    if Feature.ASYNC_KEYWORDS not in VERSION_TO_FEATURES.get(target_versions, ()):
         grammars.append(pygram.python_grammar)
+    
     if any(Feature.PATTERN_MATCHING in VERSION_TO_FEATURES[v] for v in target_versions):
-        # Python 3.10+
         grammars.append(pygram.python_grammar_soft_keywords)
 
-    # At least one of the above branches must have been taken, because every Python
-    # version has exactly one of the two 'ASYNC_*' flags
     return grammars
 
 
