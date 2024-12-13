@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3.pytree import NL, Leaf, type_repr
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -483,7 +485,7 @@ def parent_type(node: Optional[LN]) -> Optional[NodeType]:
 
 def child_towards(ancestor: Node, descendant: LN) -> Optional[LN]:
     """Return the child of `ancestor` that contains `descendant`."""
-    node: Optional[LN] = descendant
+    node = descendant
     while node and node.parent != ancestor:
         node = node.parent
     return node
