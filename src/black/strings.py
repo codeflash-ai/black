@@ -124,21 +124,11 @@ def assert_is_leaf_string(string: str) -> None:
     """
     dquote_idx = string.find('"')
     squote_idx = string.find("'")
-    if -1 in [dquote_idx, squote_idx]:
-        quote_idx = max(dquote_idx, squote_idx)
-    else:
-        quote_idx = min(squote_idx, dquote_idx)
-
-    assert (
-        0 <= quote_idx < len(string) - 1
-    ), f"{string!r} is missing a starting quote character (' or \")."
-    assert string[-1] in (
-        "'",
-        '"',
-    ), f"{string!r} is missing an ending quote character (' or \")."
-    assert set(string[:quote_idx]).issubset(
-        set(STRING_PREFIX_CHARS)
-    ), f"{set(string[:quote_idx])} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
+    quote_idx = min(max(dquote_idx, squote_idx), max(dquote_idx, squote_idx))
+    
+    assert 0 <= quote_idx < len(string) - 1, f"{string!r} is missing a starting quote character (' or \")."
+    assert string[-1] in ("'", '"'), f"{string!r} is missing an ending quote character (' or \")."
+    assert set(string[:quote_idx]).issubset(STRING_PREFIX_CHARS), f"{set(string[:quote_idx])} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
 
 
 def normalize_string_prefix(s: str) -> str:

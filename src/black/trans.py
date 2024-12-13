@@ -1809,7 +1809,6 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
             None, otherwise.
         """
         is_valid_index = is_valid_index_factory(string)
-
         assert is_valid_index(max_break_idx)
         assert_is_leaf_string(string)
 
@@ -1849,17 +1848,11 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
                 and not breaks_unsplittable_expression(i)
             )
 
-        # First, we check all indices BELOW @max_break_idx.
         break_idx = max_break_idx
         while is_valid_index(break_idx - 1) and not passes_all_checks(break_idx):
             break_idx -= 1
 
         if not passes_all_checks(break_idx):
-            # If that fails, we check all indices ABOVE @max_break_idx.
-            #
-            # If we are able to find a valid index here, the next line is going
-            # to be longer than the specified line length, but it's probably
-            # better than doing nothing at all.
             break_idx = max_break_idx + 1
             while is_valid_index(break_idx + 1) and not passes_all_checks(break_idx):
                 break_idx += 1
@@ -1910,6 +1903,9 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
             string_op_leaves.append(prefix_leaf)
             i += 1
         return string_op_leaves
+    def _get_illegal_split_indices(self, string: str):
+        # Dummy implementation for the method
+        return set()
 
 
 class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
