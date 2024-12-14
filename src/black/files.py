@@ -8,10 +8,12 @@ from re import Pattern
 from typing import TYPE_CHECKING, Any, Optional, Union
 
 from mypy_extensions import mypyc_attr
-from packaging.specifiers import InvalidSpecifier, Specifier, SpecifierSet
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 from pathspec import PathSpec
 from pathspec.patterns.gitwildmatch import GitWildMatchPatternError
+
+from black.mode import TargetVersion
 
 if sys.version_info >= (3, 11):
     try:
@@ -186,7 +188,7 @@ def parse_req_python_specifier(requires_python: str) -> Optional[list[TargetVers
         return None
 
     target_version_map = {f"3.{v.value}": v for v in TargetVersion}
-    compatible_versions: list[str] = list(specifier_set.filter(target_version_map))
+    compatible_versions = list(specifier_set.filter(target_version_map.keys()))
     if compatible_versions:
         return [target_version_map[v] for v in compatible_versions]
     return None
@@ -198,23 +200,17 @@ def strip_specifier_set(specifier_set: SpecifierSet) -> SpecifierSet:
     For background on version specifiers, see PEP 440:
     https://peps.python.org/pep-0440/#version-specifiers
     """
-    specifiers = []
-    for s in specifier_set:
-        if "*" in str(s):
-            specifiers.append(s)
-        elif s.operator in ["~=", "==", ">=", "==="]:
-            version = Version(s.version)
-            stripped = Specifier(f"{s.operator}{version.major}.{version.minor}")
-            specifiers.append(stripped)
-        elif s.operator == ">":
-            version = Version(s.version)
-            if len(version.release) > 2:
-                s = Specifier(f">={version.major}.{version.minor}")
-            specifiers.append(s)
-        else:
-            specifiers.append(s)
 
-    return SpecifierSet(",".join(str(s) for s in specifiers))
+    def process_specifier(s):
+        if "*" in str(s) or s.operator not in ["~=", "==", ">=", ">", "==="]:
+            return str(s)
+        version = Version(s.version)
+        if s.operator == ">" and len(version.release) > 2:
+            return f">={version.major}.{version.minor}"
+        return f"{s.operator}{version.major}.{version.minor}"
+
+    specifiers = [process_specifier(s) for s in specifier_set]
+    return SpecifierSet(",".join(specifiers))
 
 
 @lru_cache
