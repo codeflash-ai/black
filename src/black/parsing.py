@@ -136,24 +136,25 @@ def _parse_single_version(
 
 def parse_ast(src: str) -> ast.AST:
     # TODO: support Python 4+ ;)
-    versions = [(3, minor) for minor in range(3, sys.version_info[1] + 1)]
+    first_error = None
+    minor_version = sys.version_info[1]
 
-    first_error = ""
-    for version in sorted(versions, reverse=True):
-        try:
-            return _parse_single_version(src, version, type_comments=True)
-        except SyntaxError as e:
-            if not first_error:
-                first_error = str(e)
+    # Avoid the need to generate and sort versions repeatedly
+    for type_comments in [True, False]:
+        for minor in range(minor_version, 2, -1):
+            version = (3, minor)
+            try:
+                return _parse_single_version(src, version, type_comments=type_comments)
+            except SyntaxError as e:
+                if type_comments and first_error is None:
+                    first_error = e
 
-    # Try to parse without type comments
-    for version in sorted(versions, reverse=True):
-        try:
-            return _parse_single_version(src, version, type_comments=False)
-        except SyntaxError:
-            pass
+    if first_error:
+        raise first_error
 
-    raise SyntaxError(first_error)
+    raise SyntaxError(
+        "Unable to parse AST, unexpected condition reached."
+    )  # Fallback if logic fails
 
 
 def _normalize(lineend: str, value: str) -> str:
