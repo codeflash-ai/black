@@ -6,6 +6,10 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -598,16 +602,11 @@ def is_one_tuple(node: LN) -> bool:
     """Return True if `node` holds a tuple with one element, with or without parens."""
     if node.type == syms.atom:
         gexp = unwrap_singleton_parenthesis(node)
-        if gexp is None or gexp.type != syms.testlist_gexp:
-            return False
-
-        return len(gexp.children) == 2 and gexp.children[1].type == token.COMMA
-
-    return (
-        node.type in IMPLICIT_TUPLE
-        and len(node.children) == 2
-        and node.children[1].type == token.COMMA
-    )
+        if gexp and gexp.type == syms.testlist_gexp:
+            return len(gexp.children) == 2 and gexp.children[1].type == token.COMMA
+    elif node.type in IMPLICIT_TUPLE:
+        return len(node.children) == 2 and node.children[1].type == token.COMMA
+    return False
 
 
 def is_tuple_containing_walrus(node: LN) -> bool:
@@ -947,17 +946,12 @@ def wrap_in_parentheses(parent: Node, child: LN, *, visible: bool = True) -> Non
 
 
 def unwrap_singleton_parenthesis(node: LN) -> Optional[LN]:
-    """Returns `wrapped` if `node` is of the shape ( wrapped ).
-
-    Parenthesis can be optional. Returns None otherwise"""
-    if len(node.children) != 3:
-        return None
-
-    lpar, wrapped, rpar = node.children
-    if not (lpar.type == token.LPAR and rpar.type == token.RPAR):
-        return None
-
-    return wrapped
+    """Returns `wrapped` if `node` is of the shape ( wrapped )."""
+    if len(node.children) == 3:
+        lpar, wrapped, rpar = node.children
+        if lpar.type == token.LPAR and rpar.type == token.RPAR:
+            return wrapped
+    return None
 
 
 def ensure_visible(leaf: Leaf) -> None:
