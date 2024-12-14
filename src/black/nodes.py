@@ -6,6 +6,10 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -835,10 +839,11 @@ def is_stub_body(node: LN) -> bool:
 
 
 def is_atom_with_invisible_parens(node: LN) -> bool:
-    """Given a `LN`, determines whether it's an atom `node` with invisible
-    parens. Useful in dedupe-ing and normalizing parens.
     """
-    if isinstance(node, Leaf) or node.type != syms.atom:
+    Given a `LN`, determines whether it's an atom `node` with invisible parens.
+    Useful in dedupe-ing and normalizing parens.
+    """
+    if not isinstance(node, Node) or node.type != syms.atom:
         return False
 
     first, last = node.children[0], node.children[-1]
