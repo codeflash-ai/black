@@ -34,11 +34,12 @@ def format_complex_number(text: str) -> str:
 
 
 def format_float_or_int_string(text: str) -> str:
-    """Formats a float string like "1.0"."""
+    """Formats a float string like '1.0'."""
+    # Check for decimal point presence and split only once using partition.
     if "." not in text:
         return text
 
-    before, after = text.split(".")
+    before, _, after = text.partition(".")
     return f"{before or 0}.{after or 0}"
 
 
