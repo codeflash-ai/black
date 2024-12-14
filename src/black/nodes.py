@@ -6,6 +6,9 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pytree import Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -511,22 +514,18 @@ def container_of(leaf: Leaf) -> LN:
 
     By "container" we mean a node where `leaf` is the very first child.
     """
-    same_prefix = leaf.prefix
     container: LN = leaf
     while container:
         parent = container.parent
-        if parent is None:
+        if not (
+            parent
+            and parent.children[0].prefix == leaf.prefix
+            and parent.type != syms.file_input
+            and (
+                parent.prev_sibling is None or parent.prev_sibling.type not in BRACKETS
+            )
+        ):
             break
-
-        if parent.children[0].prefix != same_prefix:
-            break
-
-        if parent.type == syms.file_input:
-            break
-
-        if parent.prev_sibling is not None and parent.prev_sibling.type in BRACKETS:
-            break
-
         container = parent
     return container
 
