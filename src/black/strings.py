@@ -36,11 +36,8 @@ def sub_twice(regex: Pattern[str], replacement: str, original: str) -> str:
 
 
 def has_triple_quotes(string: str) -> bool:
-    """
-    Returns:
-        True iff @string starts with three quotation characters.
-    """
-    raw_string = string.lstrip(STRING_PREFIX_CHARS)
+    """Returns True if @string starts with three quotation characters."""
+    raw_string = string.lstrip("rbu")
     return raw_string[:3] in {'"""', "'''"}
 
 
