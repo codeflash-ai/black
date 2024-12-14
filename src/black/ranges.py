@@ -3,7 +3,7 @@
 import difflib
 from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
-from typing import Union
+from typing import Iterator, Union
 
 from black.nodes import (
     LN,
@@ -17,6 +17,7 @@ from black.nodes import (
     syms,
 )
 from blib2to3.pgen2.token import ASYNC, NEWLINE
+from blib2to3.pytree import Leaf, Node
 
 
 def parse_line_ranges(line_ranges: Sequence[str]) -> list[tuple[int, int]]:
@@ -378,36 +379,24 @@ def _leaf_line_end(leaf: Leaf) -> int:
     """Returns the line number of the leaf node's last line."""
     if leaf.type == NEWLINE:
         return leaf.lineno
-    else:
-        # Leaf nodes like multiline strings can occupy multiple lines.
-        return leaf.lineno + str(leaf).count("\n")
+    return leaf.lineno + leaf.value.count("\n")
 
 
 def _get_line_range(node_or_nodes: Union[LN, list[LN]]) -> set[int]:
     """Returns the line range of this node or list of nodes."""
     if isinstance(node_or_nodes, list):
-        nodes = node_or_nodes
-        if not nodes:
+        if not node_or_nodes:
             return set()
-        first = first_leaf(nodes[0])
-        last = last_leaf(nodes[-1])
-        if first and last:
-            line_start = first.lineno
-            line_end = _leaf_line_end(last)
-            return set(range(line_start, line_end + 1))
-        else:
-            return set()
+        first = first_leaf(node_or_nodes[0])
+        last = last_leaf(node_or_nodes[-1])
     else:
-        node = node_or_nodes
-        if isinstance(node, Leaf):
-            return set(range(node.lineno, _leaf_line_end(node) + 1))
-        else:
-            first = first_leaf(node)
-            last = last_leaf(node)
-            if first and last:
-                return set(range(first.lineno, _leaf_line_end(last) + 1))
-            else:
-                return set()
+        if isinstance(node_or_nodes, Leaf):
+            return set(range(node_or_nodes.lineno, _leaf_line_end(node_or_nodes) + 1))
+        first = first_leaf(node_or_nodes)
+        last = last_leaf(node_or_nodes)
+    if first and last:
+        return set(range(first.lineno, _leaf_line_end(last) + 1))
+    return set()
 
 
 @dataclass
