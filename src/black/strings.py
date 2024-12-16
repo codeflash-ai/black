@@ -51,13 +51,15 @@ def lines_with_leading_tabs_expanded(s: str) -> list[str]:
     """
     lines = []
     for line in s.splitlines():
-        stripped_line = line.lstrip()
-        if not stripped_line or stripped_line == line:
+        if "\t" not in line:
             lines.append(line)
         else:
-            prefix_length = len(line) - len(stripped_line)
-            prefix = line[:prefix_length].expandtabs()
-            lines.append(prefix + stripped_line)
+            stripped_line = line.lstrip()
+            if not stripped_line or stripped_line == line:
+                lines.append(line)
+            else:
+                prefix = line[: len(line) - len(stripped_line)].expandtabs()
+                lines.append(prefix + stripped_line)
     if s.endswith("\n"):
         lines.append("")
     return lines
@@ -67,23 +69,24 @@ def fix_docstring(docstring: str, prefix: str) -> str:
     # https://www.python.org/dev/peps/pep-0257/#handling-docstring-indentation
     if not docstring:
         return ""
+
     lines = lines_with_leading_tabs_expanded(docstring)
+
     # Determine minimum indentation (first line doesn't count):
     indent = sys.maxsize
     for line in lines[1:]:
-        stripped = line.lstrip()
-        if stripped:
-            indent = min(indent, len(line) - len(stripped))
+        if line.strip():
+            indent = min(indent, len(line) - len(line.lstrip()))
+
     # Remove indentation (first line is special):
+    if indent == sys.maxsize:
+        trimmed = [lines[0].strip()]
+        return "\n".join(trimmed)
+
     trimmed = [lines[0].strip()]
-    if indent < sys.maxsize:
-        last_line_idx = len(lines) - 2
-        for i, line in enumerate(lines[1:]):
-            stripped_line = line[indent:].rstrip()
-            if stripped_line or i == last_line_idx:
-                trimmed.append(prefix + stripped_line)
-            else:
-                trimmed.append("")
+    for line in lines[1:]:
+        trimmed.append(prefix + line[indent:].rstrip())
+
     return "\n".join(trimmed)
 
 
