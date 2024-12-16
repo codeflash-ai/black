@@ -97,13 +97,14 @@ def get_string_prefix(string: str) -> str:
     """
     assert_is_leaf_string(string)
 
-    prefix = ""
-    prefix_idx = 0
-    while string[prefix_idx] in STRING_PREFIX_CHARS:
-        prefix += string[prefix_idx]
-        prefix_idx += 1
+    prefix = []
+    for char in string:
+        if char in STRING_PREFIX_CHARS:
+            prefix.append(char)
+        else:
+            break
 
-    return prefix
+    return "".join(prefix)
 
 
 def assert_is_leaf_string(string: str) -> None:
@@ -122,23 +123,31 @@ def assert_is_leaf_string(string: str) -> None:
         AssertionError(...) if the pre-conditions listed above are not
         satisfied.
     """
-    dquote_idx = string.find('"')
-    squote_idx = string.find("'")
-    if -1 in [dquote_idx, squote_idx]:
-        quote_idx = max(dquote_idx, squote_idx)
-    else:
-        quote_idx = min(squote_idx, dquote_idx)
+    if not string or len(string) < 2:
+        raise AssertionError(
+            f"{string!r} is missing a starting or ending quote character (' or \")."
+        )
 
-    assert (
-        0 <= quote_idx < len(string) - 1
-    ), f"{string!r} is missing a starting quote character (' or \")."
-    assert string[-1] in (
-        "'",
-        '"',
-    ), f"{string!r} is missing an ending quote character (' or \")."
-    assert set(string[:quote_idx]).issubset(
-        set(STRING_PREFIX_CHARS)
-    ), f"{set(string[:quote_idx])} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
+    if string[0] not in STRING_PREFIX_CHARS and string[0] not in ('"', "'"):
+        raise AssertionError(
+            f"{string!r} is missing a starting quote character (' or \")."
+        )
+
+    if string[-1] not in ("'", '"'):
+        raise AssertionError(
+            f"{string!r} is missing an ending quote character (' or \")."
+        )
+
+    for idx, char in enumerate(string):
+        if char in ('"', "'"):
+            if any(c not in STRING_PREFIX_CHARS for c in string[:idx]):
+                prefix_set = set(string[:idx])
+                raise AssertionError(
+                    f"{prefix_set} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
+                )
+            return
+
+    raise AssertionError(f"{string!r} is missing a starting quote character (' or \").")
 
 
 def normalize_string_prefix(s: str) -> str:
