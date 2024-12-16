@@ -1378,7 +1378,7 @@ def iter_fexpr_spans(s: str) -> Iterator[tuple[int, int]]:
 
 
 def fstring_contains_expr(s: str) -> bool:
-    return any(iter_fexpr_spans(s))
+    return "{" in s and "}" in s
 
 
 def _toggle_fexpr_quotes(fstring: str, old_quote: str) -> str:
@@ -1892,11 +1892,8 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
             new_prefix = prefix.replace("f", "")
 
             temp = string[len(prefix) :]
-            temp = re.sub(r"\{\{", "{", temp)
-            temp = re.sub(r"\}\}", "}", temp)
-            new_string = temp
-
-            return f"{new_prefix}{new_string}"
+            temp = temp.replace("{{", "{").replace("}}", "}")
+            return f"{new_prefix}{temp}"
         else:
             return string
 
