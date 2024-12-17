@@ -1426,15 +1426,13 @@ def _contains_asexpr(node: Union[Node, Leaf]) -> bool:
     """Return True if `node` contains an as-pattern."""
     if node.type == syms.asexpr_test:
         return True
-    elif node.type == syms.atom:
-        if (
-            len(node.children) == 3
-            and node.children[0].type == token.LPAR
-            and node.children[2].type == token.RPAR
-        ):
+    if node.type == syms.atom and len(node.children) == 3:
+        if node.children[0].type == token.LPAR and node.children[2].type == token.RPAR:
             return _contains_asexpr(node.children[1])
     elif node.type == syms.testlist_gexp:
-        return any(_contains_asexpr(child) for child in node.children)
+        for child in node.children:
+            if _contains_asexpr(child):
+                return True
     return False
 
 
