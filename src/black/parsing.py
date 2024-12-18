@@ -7,7 +7,7 @@ import sys
 import warnings
 from collections.abc import Collection, Iterator
 
-from black.mode import VERSION_TO_FEATURES, Feature, TargetVersion, supports_feature
+from black.mode import Feature, TargetVersion, supports_feature
 from black.nodes import syms
 from blib2to3 import pygram
 from blib2to3.pgen2 import driver
@@ -23,32 +23,27 @@ class InvalidInput(ValueError):
 
 def get_grammars(target_versions: set[TargetVersion]) -> list[Grammar]:
     if not target_versions:
-        # No target_version specified, so try all grammars.
         return [
-            # Python 3.7-3.9
             pygram.python_grammar_async_keywords,
-            # Python 3.0-3.6
             pygram.python_grammar,
-            # Python 3.10+
             pygram.python_grammar_soft_keywords,
         ]
 
     grammars = []
-    # If we have to parse both, try to parse async as a keyword first
-    if not supports_feature(
+    supports_async_identifiers = supports_feature(
         target_versions, Feature.ASYNC_IDENTIFIERS
-    ) and not supports_feature(target_versions, Feature.PATTERN_MATCHING):
-        # Python 3.7-3.9
+    )
+    supports_pattern_matching = supports_feature(
+        target_versions, Feature.PATTERN_MATCHING
+    )
+
+    if not supports_async_identifiers and not supports_pattern_matching:
         grammars.append(pygram.python_grammar_async_keywords)
     if not supports_feature(target_versions, Feature.ASYNC_KEYWORDS):
-        # Python 3.0-3.6
         grammars.append(pygram.python_grammar)
-    if any(Feature.PATTERN_MATCHING in VERSION_TO_FEATURES[v] for v in target_versions):
-        # Python 3.10+
+    if supports_pattern_matching:
         grammars.append(pygram.python_grammar_soft_keywords)
 
-    # At least one of the above branches must have been taken, because every Python
-    # version has exactly one of the two 'ASYNC_*' flags
     return grammars
 
 
