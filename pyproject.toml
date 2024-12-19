@@ -23,6 +23,15 @@ extend-exclude = '''
 # (which is implied by this flag) off.
 unstable = true
 
+[tool.codeflash]
+# All paths are relative to this pyproject.toml's directory.
+module-root = "src/black"
+tests-root = "tests"
+test-framework = "pytest"
+pytest-cmd = "pytest --run-optional no_jupyter"
+ignore-paths = []
+formatter-cmds = ["black $file"]
+
 # Build system information and other project-specific configuration below.
 # NOTE: You don't need this in your own Black configuration.
 
