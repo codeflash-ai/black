@@ -96,16 +96,22 @@ def diff(a: str, b: str, a_name: str, b_name: str) -> str:
 def color_diff(contents: str) -> str:
     """Inject the ANSI color codes to the diff."""
     lines = contents.split("\n")
+    bold = "\033[1m"
+    cyan = "\033[36m"
+    green = "\033[32m"
+    red = "\033[31m"
+    reset = "\033[0m"
+    
     for i, line in enumerate(lines):
-        if line.startswith("+++") or line.startswith("---"):
-            line = "\033[1m" + line + "\033[0m"  # bold, reset
-        elif line.startswith("@@"):
-            line = "\033[36m" + line + "\033[0m"  # cyan, reset
-        elif line.startswith("+"):
-            line = "\033[32m" + line + "\033[0m"  # green, reset
-        elif line.startswith("-"):
-            line = "\033[31m" + line + "\033[0m"  # red, reset
-        lines[i] = line
+        if line[:3] in ('+++', '---'):
+            lines[i] = f"{bold}{line}{reset}"
+        elif line[:2] == "@@":
+            lines[i] = f"{cyan}{line}{reset}"
+        elif line and line[0] == "+":
+            lines[i] = f"{green}{line}{reset}"
+        elif line and line[0] == "-":
+            lines[i] = f"{red}{line}{reset}"
+    
     return "\n".join(lines)
 
 
