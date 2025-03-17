@@ -103,11 +103,11 @@ class WriteBack(Enum):
     ) -> "WriteBack":
         if check and not diff:
             return cls.CHECK
+        
+        if diff:
+            return cls.COLOR_DIFF if color else cls.DIFF
 
-        if diff and color:
-            return cls.COLOR_DIFF
-
-        return cls.DIFF if diff else cls.YES
+        return cls.YES
 
 
 # Legacy name, left for integrations.
