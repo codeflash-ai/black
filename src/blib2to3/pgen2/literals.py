@@ -20,25 +20,23 @@ simple_escapes: dict[str, str] = {
 
 
 def escape(m: re.Match[str]) -> str:
-    all, tail = m.group(0, 1)
-    assert all.startswith("\\")
+    tail = m.group(1)
     esc = simple_escapes.get(tail)
     if esc is not None:
         return esc
     if tail.startswith("x"):
         hexes = tail[1:]
-        if len(hexes) < 2:
+        if len(hexes) != 2:
             raise ValueError("invalid hex string escape ('\\%s')" % tail)
         try:
-            i = int(hexes, 16)
+            return chr(int(hexes, 16))
         except ValueError:
             raise ValueError("invalid hex string escape ('\\%s')" % tail) from None
     else:
         try:
-            i = int(tail, 8)
+            return chr(int(tail, 8))
         except ValueError:
             raise ValueError("invalid octal string escape ('\\%s')" % tail) from None
-    return chr(i)
 
 
 def evalString(s: str) -> str:
