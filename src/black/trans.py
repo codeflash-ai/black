@@ -2397,16 +2397,8 @@ class StringParser:
 
     def _next_state(self, leaf: Leaf) -> bool:
         """
-        Pre-conditions:
-            * On the first call to this function, @leaf MUST be the leaf that
-              was directly after the string leaf in question (e.g. if our target
-              string is `line.leaves[i]` then the first call to this method must
-              be `line.leaves[i + 1]`).
-            * On the next call to this function, the leaf parameter passed in
-              MUST be the leaf directly following @leaf.
-
-        Returns:
-            True iff @leaf is a part of the string's trailer.
+        Handles state transitions for the parser based on the current token.
+        Returns True iff @leaf is a part of the string's trailer.
         """
         # We ignore empty LPAR or RPAR leaves.
         if is_empty_par(leaf):
@@ -2418,28 +2410,19 @@ class StringParser:
 
         current_state = self._state
 
-        # The LPAR parser state is a special case. We will return True until we
-        # find the matching RPAR token.
         if current_state == self.LPAR:
             if next_token == token.RPAR:
                 self._unmatched_lpars -= 1
                 if self._unmatched_lpars == 0:
                     self._state = self.RPAR
-        # Otherwise, we use a lookup table to determine the next state.
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
-            else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
-                else:
-                    raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
+            self._state = self._goto.get(
+                (current_state, next_token),
+                self._goto.get((current_state, self.DEFAULT_TOKEN), None),
+            )
+
+            if self._state is None:
+                raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
 
             if self._state == self.DONE:
                 return False
