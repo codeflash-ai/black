@@ -6,6 +6,10 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import Leaf, Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -612,13 +616,13 @@ def is_one_tuple(node: LN) -> bool:
 
 def is_tuple_containing_walrus(node: LN) -> bool:
     """Return True if `node` holds a tuple that contains a walrus operator."""
-    if node.type != syms.atom:
-        return False
-    gexp = unwrap_singleton_parenthesis(node)
-    if gexp is None or gexp.type != syms.testlist_gexp:
-        return False
-
-    return any(child.type == syms.namedexpr_test for child in gexp.children)
+    if node.type == syms.atom:
+        gexp = unwrap_singleton_parenthesis(node)
+        if gexp and gexp.type == syms.testlist_gexp:
+            for child in gexp.children:
+                if child.type == syms.namedexpr_test:
+                    return True
+    return False
 
 
 def is_one_sequence_between(
@@ -950,14 +954,11 @@ def unwrap_singleton_parenthesis(node: LN) -> Optional[LN]:
     """Returns `wrapped` if `node` is of the shape ( wrapped ).
 
     Parenthesis can be optional. Returns None otherwise"""
-    if len(node.children) != 3:
-        return None
-
-    lpar, wrapped, rpar = node.children
-    if not (lpar.type == token.LPAR and rpar.type == token.RPAR):
-        return None
-
-    return wrapped
+    if len(node.children) == 3:
+        lpar, wrapped, rpar = node.children
+        if lpar.type == token.LPAR and rpar.type == token.RPAR:
+            return wrapped
+    return None
 
 
 def ensure_visible(leaf: Leaf) -> None:
