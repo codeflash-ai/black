@@ -4,7 +4,10 @@ blib2to3 Node/Leaf transformation-related utility functions.
 
 import sys
 from collections.abc import Iterator
-from typing import Final, Generic, Literal, Optional, TypeVar, Union
+from typing import Final, Generic, Iterator, Literal, Optional, TypeVar, Union
+
+from blib2to3.pgen2 import token
+from blib2to3.pytree import Leaf
 
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
@@ -760,7 +763,7 @@ def is_vararg(leaf: Leaf, within: set[NodeType]) -> bool:
 
 def is_fstring(node: Node) -> bool:
     """Return True if the node is an f-string"""
-    return node.type == syms.fstring
+    return node.type == token.FSTRING
 
 
 def fstring_to_string(node: Node) -> Leaf:
