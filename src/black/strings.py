@@ -122,23 +122,38 @@ def assert_is_leaf_string(string: str) -> None:
         AssertionError(...) if the pre-conditions listed above are not
         satisfied.
     """
-    dquote_idx = string.find('"')
-    squote_idx = string.find("'")
-    if -1 in [dquote_idx, squote_idx]:
-        quote_idx = max(dquote_idx, squote_idx)
-    else:
-        quote_idx = min(squote_idx, dquote_idx)
-
-    assert (
-        0 <= quote_idx < len(string) - 1
-    ), f"{string!r} is missing a starting quote character (' or \")."
+    first_char = string[0]
+    assert first_char in (
+        "'",
+        '"',
+        "b",
+        "r",
+        "u",
+        "f",
+        "R",
+        "U",
+        "F",
+        "B",
+    ), f"{string!r} is missing a starting quote character (' or \") or prefix."
     assert string[-1] in (
         "'",
         '"',
     ), f"{string!r} is missing an ending quote character (' or \")."
-    assert set(string[:quote_idx]).issubset(
-        set(STRING_PREFIX_CHARS)
-    ), f"{set(string[:quote_idx])} is NOT a subset of {set(STRING_PREFIX_CHARS)}."
+
+    prefix_end = 0
+    if first_char not in ("'", '"'):
+        for i, c in enumerate(string):
+            if c in ("'", '"'):
+                prefix_end = i
+                break
+        else:
+            raise AssertionError(
+                f"{string!r} is missing a starting quote character (' or \")."
+            )
+
+        assert set(string[:prefix_end]).issubset(
+            STRING_PREFIX_CHARS
+        ), f"{set(string[:prefix_end])} is NOT a subset of {STRING_PREFIX_CHARS}."
 
 
 def normalize_string_prefix(s: str) -> str:
