@@ -6,6 +6,10 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import Leaf, Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -666,28 +670,24 @@ def is_walrus_assignment(node: LN) -> bool:
 
 def is_simple_decorator_trailer(node: LN, last: bool = False) -> bool:
     """Return True iff `node` is a trailer valid in a simple decorator"""
-    return node.type == syms.trailer and (
-        (
-            len(node.children) == 2
-            and node.children[0].type == token.DOT
-            and node.children[1].type == token.NAME
-        )
-        # last trailer can be an argument-less parentheses pair
-        or (
+    if node.type != syms.trailer:
+        return False
+
+    if len(node.children) == 2:
+        if node.children[0].type == token.DOT and node.children[1].type == token.NAME:
+            return True
+        if (
             last
-            and len(node.children) == 2
             and node.children[0].type == token.LPAR
             and node.children[1].type == token.RPAR
-        )
-        # last trailer can be arguments
-        or (
-            last
-            and len(node.children) == 3
-            and node.children[0].type == token.LPAR
-            # and node.children[1].type == syms.argument
-            and node.children[2].type == token.RPAR
-        )
-    )
+        ):
+            return True
+
+    if last and len(node.children) == 3:
+        if node.children[0].type == token.LPAR and node.children[2].type == token.RPAR:
+            return True
+
+    return False
 
 
 def is_simple_decorator_expression(node: LN) -> bool:
