@@ -143,9 +143,10 @@ def assert_is_leaf_string(string: str) -> None:
 
 def normalize_string_prefix(s: str) -> str:
     """Make all string prefixes lowercase."""
-    match = STRING_PREFIX_RE.match(s)
-    assert match is not None, f"failed to match string {s!r}"
-    orig_prefix = match.group(1)
+    i = 0
+    while i < len(s) and s[i] in STRING_PREFIX_CHARS:
+        i += 1
+    orig_prefix = s[:i]
     new_prefix = (
         orig_prefix.replace("F", "f")
         .replace("B", "b")
@@ -156,7 +157,7 @@ def normalize_string_prefix(s: str) -> str:
     # Python syntax guarantees max 2 prefixes and that one of them is "r"
     if len(new_prefix) == 2 and "r" != new_prefix[0].lower():
         new_prefix = new_prefix[::-1]
-    return f"{new_prefix}{match.group(2)}"
+    return f"{new_prefix}{s[i:]}"
 
 
 # Re(gex) does actually cache patterns internally but this still improves
