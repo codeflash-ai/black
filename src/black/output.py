@@ -95,18 +95,19 @@ def diff(a: str, b: str, a_name: str, b_name: str) -> str:
 
 def color_diff(contents: str) -> str:
     """Inject the ANSI color codes to the diff."""
-    lines = contents.split("\n")
-    for i, line in enumerate(lines):
+    result = []
+    for line in contents.split("\n"):
         if line.startswith("+++") or line.startswith("---"):
-            line = "\033[1m" + line + "\033[0m"  # bold, reset
+            result.append("\033[1m" + line + "\033[0m")  # bold, reset
         elif line.startswith("@@"):
-            line = "\033[36m" + line + "\033[0m"  # cyan, reset
+            result.append("\033[36m" + line + "\033[0m")  # cyan, reset
         elif line.startswith("+"):
-            line = "\033[32m" + line + "\033[0m"  # green, reset
+            result.append("\033[32m" + line + "\033[0m")  # green, reset
         elif line.startswith("-"):
-            line = "\033[31m" + line + "\033[0m"  # red, reset
-        lines[i] = line
-    return "\n".join(lines)
+            result.append("\033[31m" + line + "\033[0m")  # red, reset
+        else:
+            result.append(line)
+    return "\n".join(result)
 
 
 @mypyc_attr(patchable=True)
