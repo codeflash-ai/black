@@ -458,6 +458,7 @@ def _calculate_lines_mappings(
       original_source: the original source.
       modified_source: the modified source.
     """
+
     matcher = difflib.SequenceMatcher(
         None,
         original_source.splitlines(keepends=True),
@@ -465,14 +466,10 @@ def _calculate_lines_mappings(
     )
     matching_blocks = matcher.get_matching_blocks()
     lines_mappings: list[_LinesMapping] = []
-    # matching_blocks is a sequence of "same block of code ranges", see
-    # https://docs.python.org/3/library/difflib.html#difflib.SequenceMatcher.get_matching_blocks
-    # Each block corresponds to a _LinesMapping with is_changed_block=False,
-    # and the ranges between two blocks corresponds to a _LinesMapping with
-    # is_changed_block=True,
-    # NOTE: matching_blocks is 0-based, but _LinesMapping is 1-based.
-    for i, block in enumerate(matching_blocks):
-        if i == 0:
+
+    prev_block = None
+    for block in matching_blocks:
+        if prev_block is None:
             if block.a != 0 or block.b != 0:
                 lines_mappings.append(
                     _LinesMapping(
@@ -484,17 +481,16 @@ def _calculate_lines_mappings(
                     )
                 )
         else:
-            previous_block = matching_blocks[i - 1]
             lines_mappings.append(
                 _LinesMapping(
-                    original_start=previous_block.a + previous_block.size + 1,
+                    original_start=prev_block.a + prev_block.size + 1,
                     original_end=block.a,
-                    modified_start=previous_block.b + previous_block.size + 1,
+                    modified_start=prev_block.b + prev_block.size + 1,
                     modified_end=block.b,
                     is_changed_block=True,
                 )
             )
-        if i < len(matching_blocks) - 1:
+        if block.size > 0:
             lines_mappings.append(
                 _LinesMapping(
                     original_start=block.a + 1,
@@ -504,6 +500,8 @@ def _calculate_lines_mappings(
                     is_changed_block=False,
                 )
             )
+        prev_block = block
+
     return lines_mappings
 
 
