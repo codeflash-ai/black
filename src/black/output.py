@@ -3,6 +3,7 @@
 The double calls are for patching purposes in tests.
 """
 
+import difflib
 import json
 import re
 import tempfile
@@ -66,30 +67,32 @@ def _splitlines_no_ff(source: str) -> list[str]:
 
     A simplified version of the function with the same name in Lib/ast.py
     """
-    result = [match[0] for match in _line_pattern.finditer(source)]
-    if result[-1] == "":
-        result.pop(-1)
+    result = _line_pattern.findall(source)
+    if result and result[-1] == "":
+        result.pop()
     return result
 
 
 def diff(a: str, b: str, a_name: str, b_name: str) -> str:
     """Return a unified diff string between strings `a` and `b`."""
-    import difflib
 
     a_lines = _splitlines_no_ff(a)
     b_lines = _splitlines_no_ff(b)
     diff_lines = []
+
+    append_diff = diff_lines.append
     for line in difflib.unified_diff(
         a_lines, b_lines, fromfile=a_name, tofile=b_name, n=5
     ):
         # Work around https://bugs.python.org/issue2142
         # See:
         # https://www.gnu.org/software/diffutils/manual/html_node/Incomplete-Lines.html
-        if line[-1] == "\n":
-            diff_lines.append(line)
+        if line.endswith("\n"):
+            append_diff(line)
         else:
-            diff_lines.append(line + "\n")
-            diff_lines.append("\\ No newline at end of file\n")
+            append_diff(line + "\n")
+            append_diff("\\ No newline at end of file\n")
+
     return "".join(diff_lines)
 
 
