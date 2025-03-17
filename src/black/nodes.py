@@ -6,6 +6,12 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import NL, Leaf, Node
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -719,20 +725,16 @@ def is_yield(node: LN) -> bool:
     if node.type == syms.yield_expr:
         return True
 
-    if is_name_token(node) and node.value == "yield":
-        return True
+    if (
+        node.type == syms.atom
+        and len(node.children) == 3
+        and node.children[0].type == token.LPAR
+        and node.children[2].type == token.RPAR
+    ):
+        return is_yield(node.children[1])
 
-    if node.type != syms.atom:
-        return False
-
-    if len(node.children) != 3:
-        return False
-
-    lpar, expr, rpar = node.children
-    if lpar.type == token.LPAR and rpar.type == token.RPAR:
-        return is_yield(expr)
-
-    return False
+    # Check for `yield` keyword after atom checks
+    return is_name_token(node) and node.value == "yield"
 
 
 def is_vararg(leaf: Leaf, within: set[NodeType]) -> bool:
