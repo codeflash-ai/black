@@ -20,36 +20,34 @@ simple_escapes: dict[str, str] = {
 
 
 def escape(m: re.Match[str]) -> str:
-    all, tail = m.group(0, 1)
-    assert all.startswith("\\")
-    esc = simple_escapes.get(tail)
-    if esc is not None:
-        return esc
-    if tail.startswith("x"):
+    tail = m.group(1)
+    first_char = tail[0]
+    if first_char in simple_escapes:
+        return simple_escapes[first_char]
+
+    if first_char == "x":
         hexes = tail[1:]
         if len(hexes) < 2:
-            raise ValueError("invalid hex string escape ('\\%s')" % tail)
+            raise ValueError(f"invalid hex string escape ('\\{tail}')")
         try:
-            i = int(hexes, 16)
+            return chr(int(hexes, 16))
         except ValueError:
-            raise ValueError("invalid hex string escape ('\\%s')" % tail) from None
+            raise ValueError(f"invalid hex string escape ('\\{tail}')") from None
     else:
         try:
-            i = int(tail, 8)
+            return chr(int(tail, 8))
         except ValueError:
-            raise ValueError("invalid octal string escape ('\\%s')" % tail) from None
-    return chr(i)
+            raise ValueError(f"invalid octal string escape ('\\{tail}')") from None
 
 
 def evalString(s: str) -> str:
-    assert s.startswith("'") or s.startswith('"'), repr(s[:1])
     q = s[0]
-    if s[:3] == q * 3:
-        q = q * 3
+    if s.startswith(q * 3):
+        q *= 3
     assert s.endswith(q), repr(s[-len(q) :])
     assert len(s) >= 2 * len(q)
     s = s[len(q) : -len(q)]
-    return re.sub(r"\\(\'|\"|\\|[abfnrtv]|x.{0,2}|[0-7]{1,3})", escape, s)
+    return re.sub(r"\\([\'\"\\abfnrtv]|x[0-9A-Fa-f]{0,2}|[0-7]{1,3})", escape, s)
 
 
 def test() -> None:
