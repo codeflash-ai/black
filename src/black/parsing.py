@@ -7,7 +7,7 @@ import sys
 import warnings
 from collections.abc import Collection, Iterator
 
-from black.mode import VERSION_TO_FEATURES, Feature, TargetVersion, supports_feature
+from black.mode import Feature, TargetVersion, supports_feature
 from black.nodes import syms
 from blib2to3 import pygram
 from blib2to3.pgen2 import driver
@@ -15,6 +15,7 @@ from blib2to3.pgen2.grammar import Grammar
 from blib2to3.pgen2.parse import ParseError
 from blib2to3.pgen2.tokenize import TokenError
 from blib2to3.pytree import Leaf, Node
+from functools import lru_cache
 
 
 class InvalidInput(ValueError):
@@ -23,32 +24,27 @@ class InvalidInput(ValueError):
 
 def get_grammars(target_versions: set[TargetVersion]) -> list[Grammar]:
     if not target_versions:
-        # No target_version specified, so try all grammars.
         return [
-            # Python 3.7-3.9
             pygram.python_grammar_async_keywords,
-            # Python 3.0-3.6
             pygram.python_grammar,
-            # Python 3.10+
             pygram.python_grammar_soft_keywords,
         ]
 
     grammars = []
-    # If we have to parse both, try to parse async as a keyword first
-    if not supports_feature(
+    supports_async_identifiers = supports_feature(
         target_versions, Feature.ASYNC_IDENTIFIERS
-    ) and not supports_feature(target_versions, Feature.PATTERN_MATCHING):
-        # Python 3.7-3.9
+    )
+    supports_pattern_matching = supports_feature(
+        target_versions, Feature.PATTERN_MATCHING
+    )
+
+    if not supports_async_identifiers and not supports_pattern_matching:
         grammars.append(pygram.python_grammar_async_keywords)
     if not supports_feature(target_versions, Feature.ASYNC_KEYWORDS):
-        # Python 3.0-3.6
         grammars.append(pygram.python_grammar)
-    if any(Feature.PATTERN_MATCHING in VERSION_TO_FEATURES[v] for v in target_versions):
-        # Python 3.10+
+    if supports_pattern_matching:
         grammars.append(pygram.python_grammar_soft_keywords)
 
-    # At least one of the above branches must have been taken, because every Python
-    # version has exactly one of the two 'ASYNC_*' flags
     return grammars
 
 
@@ -122,6 +118,7 @@ class ASTSafetyError(Exception):
     """Raised when Black's generated code is not equivalent to the old AST."""
 
 
+@lru_cache(None)
 def _parse_single_version(
     src: str, version: tuple[int, int], *, type_comments: bool
 ) -> ast.AST:
@@ -135,23 +132,17 @@ def _parse_single_version(
 
 
 def parse_ast(src: str) -> ast.AST:
-    # TODO: support Python 4+ ;)
     versions = [(3, minor) for minor in range(3, sys.version_info[1] + 1)]
 
-    first_error = ""
-    for version in sorted(versions, reverse=True):
-        try:
-            return _parse_single_version(src, version, type_comments=True)
-        except SyntaxError as e:
-            if not first_error:
-                first_error = str(e)
-
-    # Try to parse without type comments
-    for version in sorted(versions, reverse=True):
-        try:
-            return _parse_single_version(src, version, type_comments=False)
-        except SyntaxError:
-            pass
+    for type_comments in (True, False):
+        for version in reversed(versions):
+            try:
+                return _parse_single_version(
+                    src, version[1], type_comments=type_comments
+                )
+            except SyntaxError as e:
+                if type_comments:
+                    first_error = e
 
     raise SyntaxError(first_error)
 
