@@ -14,16 +14,13 @@ def format_hex(text: str) -> str:
 
 
 def format_scientific_notation(text: str) -> str:
-    """Formats a numeric string utilizing scientific notation"""
+    """Formats a numeric string utilizing scientific notation. Avoids unnecessary operations."""
     before, after = text.split("e")
-    sign = ""
     if after.startswith("-"):
-        after = after[1:]
-        sign = "-"
+        return f"{format_float_or_int_string(before)}e-{after[1:]}"
     elif after.startswith("+"):
-        after = after[1:]
-    before = format_float_or_int_string(before)
-    return f"{before}e{sign}{after}"
+        return f"{format_float_or_int_string(before)}e{after[1:]}"
+    return f"{format_float_or_int_string(before)}e{after}"
 
 
 def format_complex_number(text: str) -> str:
@@ -34,12 +31,11 @@ def format_complex_number(text: str) -> str:
 
 
 def format_float_or_int_string(text: str) -> str:
-    """Formats a float string like "1.0"."""
-    if "." not in text:
-        return text
-
-    before, after = text.split(".")
-    return f"{before or 0}.{after or 0}"
+    """Formats a float string like "1.0". Only splits if needed."""
+    if "." in text:
+        before, after = text.split(".")
+        return f"{before or 0}.{after or 0}"
+    return text
 
 
 def normalize_numeric_literal(leaf: Leaf) -> None:
