@@ -1890,13 +1890,9 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
 
         if "f" in prefix and not fstring_contains_expr(string):
             new_prefix = prefix.replace("f", "")
-
             temp = string[len(prefix) :]
-            temp = re.sub(r"\{\{", "{", temp)
-            temp = re.sub(r"\}\}", "}", temp)
-            new_string = temp
-
-            return f"{new_prefix}{new_string}"
+            temp = temp.replace("{{", "{").replace("}}", "}")
+            return f"{new_prefix}{temp}"
         else:
             return string
 
