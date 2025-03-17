@@ -6,6 +6,7 @@ The double calls are for patching purposes in tests.
 import json
 import re
 import tempfile
+from difflib import unified_diff
 from typing import Any, Optional
 
 from click import echo, style
@@ -43,16 +44,25 @@ def ipynb_diff(a: str, b: str, a_name: str, b_name: str) -> str:
     """Return a unified diff string between each cell in notebooks `a` and `b`."""
     a_nb = json.loads(a)
     b_nb = json.loads(b)
-    diff_lines = [
-        diff(
-            "".join(a_nb["cells"][cell_number]["source"]) + "\n",
-            "".join(b_nb["cells"][cell_number]["source"]) + "\n",
-            f"{a_name}:cell_{cell_number}",
-            f"{b_name}:cell_{cell_number}",
-        )
-        for cell_number, cell in enumerate(a_nb["cells"])
-        if cell["cell_type"] == "code"
-    ]
+
+    diff_lines = []
+    min_cells = min(len(a_nb["cells"]), len(b_nb["cells"]))
+
+    for cell_number in range(min_cells):
+        a_cell = a_nb["cells"][cell_number]
+        b_cell = b_nb["cells"][cell_number]
+
+        if a_cell["cell_type"] == "code" and b_cell["cell_type"] == "code":
+            a_source = "".join(a_cell["source"]) + "\n"
+            b_source = "".join(b_cell["source"]) + "\n"
+            diff = unified_diff(
+                a_source.splitlines(keepends=True),
+                b_source.splitlines(keepends=True),
+                fromfile=f"{a_name}:cell_{cell_number}",
+                tofile=f"{b_name}:cell_{cell_number}",
+            )
+            diff_lines.extend(diff)
+
     return "".join(diff_lines)
 
 
