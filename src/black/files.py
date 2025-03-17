@@ -199,22 +199,26 @@ def strip_specifier_set(specifier_set: SpecifierSet) -> SpecifierSet:
     https://peps.python.org/pep-0440/#version-specifiers
     """
     specifiers = []
-    for s in specifier_set:
-        if "*" in str(s):
-            specifiers.append(s)
-        elif s.operator in ["~=", "==", ">=", "==="]:
-            version = Version(s.version)
-            stripped = Specifier(f"{s.operator}{version.major}.{version.minor}")
-            specifiers.append(stripped)
-        elif s.operator == ">":
-            version = Version(s.version)
-            if len(version.release) > 2:
-                s = Specifier(f">={version.major}.{version.minor}")
-            specifiers.append(s)
-        else:
-            specifiers.append(s)
+    specifier_add = specifiers.append
 
-    return SpecifierSet(",".join(str(s) for s in specifiers))
+    for s in specifier_set:
+        s_operator = s.operator
+        if "*" in s.version:
+            specifier_add(s)
+        elif s_operator in ["~=", "==", ">=", "==="]:
+            version_parts = s.version.split(".")
+            major_version = version_parts[0]
+            minor_version = version_parts[1] if len(version_parts) > 1 else "0"
+            stripped = Specifier(f"{s_operator}{major_version}.{minor_version}")
+            specifier_add(stripped)
+        elif s_operator == ">":
+            version_parts = s.version.split(".")
+            if len(version_parts) > 2:
+                s = Specifier(f">={version_parts[0]}.{version_parts[1]}")
+            specifier_add(s)
+        else:
+            specifier_add(s)
+    return SpecifierSet(",".join(map(str, specifiers)))
 
 
 @lru_cache
