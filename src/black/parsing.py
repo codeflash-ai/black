@@ -15,6 +15,7 @@ from blib2to3.pgen2.grammar import Grammar
 from blib2to3.pgen2.parse import ParseError
 from blib2to3.pgen2.tokenize import TokenError
 from blib2to3.pytree import Leaf, Node
+from functools import lru_cache
 
 
 class InvalidInput(ValueError):
@@ -122,6 +123,7 @@ class ASTSafetyError(Exception):
     """Raised when Black's generated code is not equivalent to the old AST."""
 
 
+@lru_cache(maxsize=None)
 def _parse_single_version(
     src: str, version: tuple[int, int], *, type_comments: bool
 ) -> ast.AST:
@@ -136,18 +138,19 @@ def _parse_single_version(
 
 def parse_ast(src: str) -> ast.AST:
     # TODO: support Python 4+ ;)
-    versions = [(3, minor) for minor in range(3, sys.version_info[1] + 1)]
+    current_minor_version = sys.version_info[1]
+    versions = [(3, minor) for minor in range(3, current_minor_version + 1)]
 
-    first_error = ""
-    for version in sorted(versions, reverse=True):
+    # Try to parse with type comments first
+    for version in reversed(versions):
         try:
             return _parse_single_version(src, version, type_comments=True)
         except SyntaxError as e:
-            if not first_error:
+            if "first_error" not in locals():
                 first_error = str(e)
 
     # Try to parse without type comments
-    for version in sorted(versions, reverse=True):
+    for version in reversed(versions):
         try:
             return _parse_single_version(src, version, type_comments=False)
         except SyntaxError:
