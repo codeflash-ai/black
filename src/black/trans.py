@@ -2397,52 +2397,25 @@ class StringParser:
 
     def _next_state(self, leaf: Leaf) -> bool:
         """
-        Pre-conditions:
-            * On the first call to this function, @leaf MUST be the leaf that
-              was directly after the string leaf in question (e.g. if our target
-              string is `line.leaves[i]` then the first call to this method must
-              be `line.leaves[i + 1]`).
-            * On the next call to this function, the leaf parameter passed in
-              MUST be the leaf directly following @leaf.
-
-        Returns:
-            True iff @leaf is a part of the string's trailer.
+        Process the next state based on the current leaf.
         """
-        # We ignore empty LPAR or RPAR leaves.
-        if is_empty_par(leaf):
-            return True
-
-        next_token = leaf.type
-        if next_token == token.LPAR:
-            self._unmatched_lpars += 1
-
-        current_state = self._state
-
-        # The LPAR parser state is a special case. We will return True until we
-        # find the matching RPAR token.
-        if current_state == self.LPAR:
-            if next_token == token.RPAR:
+        if self._state == self.LPAR:
+            if leaf.type == token.RPAR:
                 self._unmatched_lpars -= 1
                 if self._unmatched_lpars == 0:
                     self._state = self.RPAR
-        # Otherwise, we use a lookup table to determine the next state.
+        elif (self._state, leaf.type) in self._goto:
+            self._state = self._goto[(self._state, leaf.type)]
+        elif (self._state, self.DEFAULT_TOKEN) in self._goto:
+            self._state = self._goto[(self._state, self.DEFAULT_TOKEN)]
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
-            else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
-                else:
-                    raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
+            raise RuntimeError("Logic error in StringParser state transitions!")
 
-            if self._state == self.DONE:
-                return False
+        if self._state == self.DONE:
+            return False
+
+        if leaf.type == token.LPAR:
+            self._unmatched_lpars += 1
 
         return True
 
