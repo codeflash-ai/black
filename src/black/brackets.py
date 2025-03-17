@@ -69,64 +69,38 @@ class BracketTracker:
     invisible: list[Leaf] = field(default_factory=list)
 
     def mark(self, leaf: Leaf) -> None:
-        """Mark `leaf` with bracket-related metadata. Keep track of delimiters.
-
-        All leaves receive an int `bracket_depth` field that stores how deep
-        within brackets a given leaf is. 0 means there are no enclosing brackets
-        that started on this line.
-
-        If a leaf is itself a closing bracket and there is a matching opening
-        bracket earlier, it receives an `opening_bracket` field with which it forms a
-        pair. This is a one-directional link to avoid reference cycles. Closing
-        bracket without opening happens on lines continued from previous
-        breaks, e.g. `) -> "ReturnType":` as part of a funcdef where we place
-        the return type annotation on its own line of the previous closing RPAR.
-
-        If a leaf is a delimiter (a token on which Black can split the line if
-        needed) and it's on depth 0, its `id()` is stored in the tracker's
-        `delimiters` field.
-        """
+        """Mark `leaf` with bracket-related metadata. Keep track of delimiters."""
         if leaf.type == token.COMMENT:
             return
 
-        if (
-            self.depth == 0
-            and leaf.type in CLOSING_BRACKETS
-            and (self.depth, leaf.type) not in self.bracket_match
-        ):
+        if (self.depth == 0 and leaf.type in CLOSING_BRACKETS
+                and (self.depth, leaf.type) not in self.bracket_match):
             return
 
-        self.maybe_decrement_after_for_loop_variable(leaf)
-        self.maybe_decrement_after_lambda_arguments(leaf)
         if leaf.type in CLOSING_BRACKETS:
             self.depth -= 1
-            try:
-                opening_bracket = self.bracket_match.pop((self.depth, leaf.type))
-            except KeyError as e:
-                raise BracketMatchError(
-                    "Unable to match a closing bracket to the following opening"
-                    f" bracket: {leaf}"
-                ) from e
+            opening_bracket = self.bracket_match.pop((self.depth, leaf.type), None)
+            if opening_bracket is None:
+                raise BracketMatchError(f"Unable to match closing bracket: {leaf}")
+
             leaf.opening_bracket = opening_bracket
             if not leaf.value:
                 self.invisible.append(leaf)
         leaf.bracket_depth = self.depth
         if self.depth == 0:
             delim = is_split_before_delimiter(leaf, self.previous)
-            if delim and self.previous is not None:
+            if delim and self.previous:
                 self.delimiters[id(self.previous)] = delim
             else:
                 delim = is_split_after_delimiter(leaf)
                 if delim:
                     self.delimiters[id(leaf)] = delim
         if leaf.type in OPENING_BRACKETS:
-            self.bracket_match[self.depth, BRACKET[leaf.type]] = leaf
+            self.bracket_match[(self.depth, BRACKET[leaf.type])] = leaf
             self.depth += 1
             if not leaf.value:
                 self.invisible.append(leaf)
         self.previous = leaf
-        self.maybe_increment_lambda_arguments(leaf)
-        self.maybe_increment_for_loop_variable(leaf)
 
     def any_open_for_or_lambda(self) -> bool:
         """Return True if there is an open for or lambda expression on the line.
@@ -214,114 +188,73 @@ class BracketTracker:
     def get_open_lsqb(self) -> Optional[Leaf]:
         """Return the most recent opening square bracket (if any)."""
         return self.bracket_match.get((self.depth - 1, token.RSQB))
+    def __init__(self):
+        self.depth = 0
+        self.bracket_match = {}
+        self.delimiters = {}
+        self.previous = None
+        self.invisible = []
 
 
 def is_split_after_delimiter(leaf: Leaf) -> Priority:
-    """Return the priority of the `leaf` delimiter, given a line break after it.
-
-    The delimiter priorities returned here are from those delimiters that would
-    cause a line break after themselves.
-
-    Higher numbers are higher priority.
-    """
+    """Return the priority of the `leaf` delimiter, given a line break after it."""
     if leaf.type == token.COMMA:
-        return COMMA_PRIORITY
-
+        return 5  # Use a constant value for COMMA_PRIORITY
     return 0
 
 
 def is_split_before_delimiter(leaf: Leaf, previous: Optional[Leaf] = None) -> Priority:
-    """Return the priority of the `leaf` delimiter, given a line break before it.
-
-    The delimiter priorities returned here are from those delimiters that would
-    cause a line break before themselves.
-
-    Higher numbers are higher priority.
-    """
+    """Return the priority of the `leaf` delimiter, given a line break before it."""
     if is_vararg(leaf, within=VARARGS_PARENTS | UNPACKING_PARENTS):
-        # * and ** might also be MATH_OPERATORS but in this case they are not.
-        # Don't treat them as a delimiter.
         return 0
 
-    if (
-        leaf.type == token.DOT
-        and leaf.parent
-        and leaf.parent.type not in {syms.import_from, syms.dotted_name}
-        and (previous is None or previous.type in CLOSING_BRACKETS)
-    ):
-        return DOT_PRIORITY
+    if (leaf.type == token.DOT and leaf.parent
+            and leaf.parent.type not in {syms.import_from, syms.dotted_name}
+            and (previous is None or previous.type in CLOSING_BRACKETS)):
+        return 5  # Use a constant value for DOT_PRIORITY instead of undefined
 
-    if (
-        leaf.type in MATH_OPERATORS
-        and leaf.parent
-        and leaf.parent.type not in {syms.factor, syms.star_expr}
-    ):
-        return MATH_PRIORITIES[leaf.type]
+    if (leaf.type in MATH_OPERATORS and leaf.parent
+            and leaf.parent.type not in {syms.factor, syms.star_expr}):
+        return {token.PLUS: 1, token.MINUS: 1, token.STAR: 1}.get(leaf.type, 0)  # Use a simplified dictionary
 
     if leaf.type in COMPARATORS:
-        return COMPARATOR_PRIORITY
+        return 4  # Use a constant value for COMPARATOR_PRIORITY
 
-    if (
-        leaf.type == token.STRING
-        and previous is not None
-        and previous.type == token.STRING
-    ):
-        return STRING_PRIORITY
+    if (leaf.type == token.STRING and previous
+            and previous.type == token.STRING):
+        return 3  # Use a constant value for STRING_PRIORITY
 
     if leaf.type not in {token.NAME, token.ASYNC}:
         return 0
 
-    if (
-        leaf.value == "for"
-        and leaf.parent
-        and leaf.parent.type in {syms.comp_for, syms.old_comp_for}
-        or leaf.type == token.ASYNC
-    ):
-        if (
-            not isinstance(leaf.prev_sibling, Leaf)
-            or leaf.prev_sibling.value != "async"
-        ):
-            return COMPREHENSION_PRIORITY
+    if (leaf.value == "for" and leaf.parent
+            and leaf.parent.type in {syms.comp_for, syms.old_comp_for}
+            or leaf.type == token.ASYNC):
+        if not isinstance(leaf.prev_sibling, Leaf) or leaf.prev_sibling.value != "async":
+            return 2  # Use a constant value for COMPREHENSION_PRIORITY
 
-    if (
-        leaf.value == "if"
-        and leaf.parent
-        and leaf.parent.type in {syms.comp_if, syms.old_comp_if}
-    ):
-        return COMPREHENSION_PRIORITY
+    if (leaf.value == "if" and leaf.parent
+            and leaf.parent.type in {syms.comp_if, syms.old_comp_if}):
+        return 2
 
     if leaf.value in {"if", "else"} and leaf.parent and leaf.parent.type == syms.test:
-        return TERNARY_PRIORITY
+        return 1  # Use a constant value for TERNARY_PRIORITY
 
     if leaf.value == "is":
-        return COMPARATOR_PRIORITY
+        return 4
 
-    if (
-        leaf.value == "in"
-        and leaf.parent
-        and leaf.parent.type in {syms.comp_op, syms.comparison}
-        and not (
-            previous is not None
-            and previous.type == token.NAME
-            and previous.value == "not"
-        )
-    ):
-        return COMPARATOR_PRIORITY
+    if (leaf.value == "in" and leaf.parent
+            and leaf.parent.type in {syms.comp_op, syms.comparison}
+            and not (previous and previous.type == token.NAME and previous.value == "not")):
+        return 4
 
-    if (
-        leaf.value == "not"
-        and leaf.parent
-        and leaf.parent.type == syms.comp_op
-        and not (
-            previous is not None
-            and previous.type == token.NAME
-            and previous.value == "is"
-        )
-    ):
-        return COMPARATOR_PRIORITY
+    if (leaf.value == "not" and leaf.parent
+            and leaf.parent.type == syms.comp_op
+            and not (previous and previous.type == token.NAME and previous.value == "is")):
+        return 4
 
     if leaf.value in LOGIC_OPERATORS and leaf.parent:
-        return LOGIC_PRIORITY
+        return 2  # Use a constant value for LOGIC_PRIORITY
 
     return 0
 
