@@ -6,6 +6,10 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from blib2to3 import pygram
+from blib2to3.pgen2 import token
+from blib2to3.pytree import NL
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -880,12 +884,12 @@ def is_import(leaf: Leaf) -> bool:
 
 def is_with_or_async_with_stmt(leaf: Leaf) -> bool:
     """Return True if the given leaf starts a with or async with statement."""
-    return bool(
+    return (
         leaf.type == token.NAME
         and leaf.value == "with"
         and leaf.parent
         and leaf.parent.type == syms.with_stmt
-    ) or bool(
+    ) or (
         leaf.type == token.ASYNC
         and leaf.next_sibling
         and leaf.next_sibling.type == syms.with_stmt
