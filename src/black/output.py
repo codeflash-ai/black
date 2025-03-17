@@ -6,6 +6,7 @@ The double calls are for patching purposes in tests.
 import json
 import re
 import tempfile
+from difflib import unified_diff
 from typing import Any, Optional
 
 from click import echo, style
@@ -43,16 +44,18 @@ def ipynb_diff(a: str, b: str, a_name: str, b_name: str) -> str:
     """Return a unified diff string between each cell in notebooks `a` and `b`."""
     a_nb = json.loads(a)
     b_nb = json.loads(b)
-    diff_lines = [
-        diff(
-            "".join(a_nb["cells"][cell_number]["source"]) + "\n",
-            "".join(b_nb["cells"][cell_number]["source"]) + "\n",
-            f"{a_name}:cell_{cell_number}",
-            f"{b_name}:cell_{cell_number}",
-        )
-        for cell_number, cell in enumerate(a_nb["cells"])
-        if cell["cell_type"] == "code"
-    ]
+    diff_lines = []
+    
+    for cell_number, a_cell in enumerate(a_nb["cells"]):
+        if a_cell["cell_type"] == "code":
+            b_cell = b_nb["cells"][cell_number]
+            a_source = "".join(a_cell["source"])
+            b_source = "".join(b_cell["source"])
+            diff_lines.append(
+                diff(a_source + "\n", b_source + "\n", 
+                     f"{a_name}:cell_{cell_number}", f"{b_name}:cell_{cell_number}")
+            )
+    
     return "".join(diff_lines)
 
 
@@ -120,3 +123,14 @@ def dump_to_file(*output: str, ensure_final_newline: bool = True) -> str:
             if ensure_final_newline and lines and lines[-1] != "\n":
                 f.write("\n")
     return f.name
+
+
+def diff(a_text, b_text, a_name, b_name):
+    """Return unified diff between two texts"""
+    diff = unified_diff(
+        a_text.splitlines(keepends=True),
+        b_text.splitlines(keepends=True),
+        fromfile=a_name,
+        tofile=b_name,
+    )
+    return ''.join(diff)
