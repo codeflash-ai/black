@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -19,6 +21,10 @@ from black.strings import get_string_prefix, has_triple_quotes
 from blib2to3 import pygram
 from blib2to3.pgen2 import token
 from blib2to3.pytree import NL, Leaf, Node, type_repr
+
+_LPAR = token.LPAR
+
+_RPAR = token.RPAR
 
 pygram.initialize(CACHE_DIR)
 syms: Final = pygram.python_symbols
@@ -853,7 +859,9 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    t = leaf.type
+    v = leaf.value
+    return (t == _LPAR or t == _RPAR) and v == ""
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
