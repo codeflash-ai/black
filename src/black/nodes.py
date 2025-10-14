@@ -784,10 +784,10 @@ def is_multiline_string(node: LN) -> bool:
 
 
 def is_parent_function_or_class(node: Node) -> bool:
-    assert node.type in {syms.suite, syms.simple_stmt}
+    assert node.type == syms.suite or node.type == syms.simple_stmt
     assert node.parent is not None
     # Note this works for suites / simple_stmts in async def as well
-    return node.parent.type in {syms.funcdef, syms.classdef}
+    return node.parent.type == syms.funcdef or node.parent.type == syms.classdef
 
 
 def is_function_or_class(node: Node) -> bool:
