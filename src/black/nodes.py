@@ -911,8 +911,10 @@ def is_type_comment(leaf: Leaf) -> bool:
     use `is_type_ignore_comment`). Note that general type comments are no longer
     used in modern version of Python, this function may be deprecated in the future."""
     t = leaf.type
-    v = leaf.value
-    return t in {token.COMMENT, STANDALONE_COMMENT} and v.startswith("# type:")
+    if t == token.COMMENT or t == STANDALONE_COMMENT:
+        v = leaf.value
+        return v.startswith("# type:")
+    return False
 
 
 def is_type_ignore_comment(leaf: Leaf) -> bool:
