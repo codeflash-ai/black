@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -19,6 +21,8 @@ from black.strings import get_string_prefix, has_triple_quotes
 from blib2to3 import pygram
 from blib2to3.pgen2 import token
 from blib2to3.pytree import NL, Leaf, Node, type_repr
+
+_NUMBER_TOKEN = token.NUMBER
 
 pygram.initialize(CACHE_DIR)
 syms: Final = pygram.python_symbols
@@ -985,7 +989,7 @@ def is_rpar_token(nl: NL) -> TypeGuard[Leaf]:
 
 
 def is_number_token(nl: NL) -> TypeGuard[Leaf]:
-    return nl.type == token.NUMBER
+    return nl.type == _NUMBER_TOKEN
 
 
 def get_annotation_type(leaf: Leaf) -> Literal["return", "param", None]:
