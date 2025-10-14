@@ -1008,22 +1008,20 @@ def is_part_of_annotation(leaf: Leaf) -> bool:
 
 def first_leaf(node: LN) -> Optional[Leaf]:
     """Returns the first leaf of the ancestor node."""
-    if isinstance(node, Leaf):
-        return node
-    elif not node.children:
-        return None
-    else:
-        return first_leaf(node.children[0])
+    while not isinstance(node, Leaf):
+        if not node.children:
+            return None
+        node = node.children[0]
+    return node
 
 
 def last_leaf(node: LN) -> Optional[Leaf]:
     """Returns the last leaf of the ancestor node."""
-    if isinstance(node, Leaf):
-        return node
-    elif not node.children:
-        return None
-    else:
-        return last_leaf(node.children[-1])
+    while not isinstance(node, Leaf):
+        if not node.children:
+            return None
+        node = node.children[-1]
+    return node
 
 
 def furthest_ancestor_with_last_leaf(leaf: Leaf) -> LN:
