@@ -543,12 +543,14 @@ def first_leaf_of(node: LN) -> Optional[Leaf]:
 
 def is_arith_like(node: LN) -> bool:
     """Whether node is an arithmetic or a binary arithmetic expression"""
-    return node.type in {
-        syms.arith_expr,
-        syms.shift_expr,
-        syms.xor_expr,
-        syms.and_expr,
-    }
+    if not hasattr(is_arith_like, "_arith_types"):
+        is_arith_like._arith_types = {
+            syms.arith_expr,
+            syms.shift_expr,
+            syms.xor_expr,
+            syms.and_expr,
+        }
+    return node.type in is_arith_like._arith_types
 
 
 def is_docstring(node: NL, mode: Mode) -> bool:
