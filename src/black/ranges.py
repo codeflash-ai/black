@@ -380,7 +380,8 @@ def _leaf_line_end(leaf: Leaf) -> int:
         return leaf.lineno
     else:
         # Leaf nodes like multiline strings can occupy multiple lines.
-        return leaf.lineno + str(leaf).count("\n")
+        text = leaf.value if hasattr(leaf, "value") else str(leaf)
+        return leaf.lineno + text.count("\n")
 
 
 def _get_line_range(node_or_nodes: Union[LN, list[LN]]) -> set[int]:
