@@ -66,10 +66,12 @@ def sanitized_lines(
         if start > src_line_count:
             continue
         # line-ranges are 1-based
-        start = max(start, 1)
+        if start < 1:
+            start = 1
         if end < start:
             continue
-        end = min(end, src_line_count)
+        if end > src_line_count:
+            end = src_line_count
         good_lines.append((start, end))
     return good_lines
 
