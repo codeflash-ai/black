@@ -513,10 +513,18 @@ def _find_lines_mapping_index(
     start_index: int,
 ) -> int:
     """Returns the original index of the lines mappings for the original line."""
+    # Cache values to avoid repeated attribute and length lookups in the loop
+    len_mappings = len(lines_mappings)
     index = start_index
-    while index < len(lines_mappings):
-        mapping = lines_mappings[index]
-        if mapping.original_start <= original_line <= mapping.original_end:
+
+    # Use local variables for tight loop
+    ol = original_line
+    mappings = lines_mappings
+
+    # Pull attribute access outside loop for performance (assuming _LinesMapping has 'original_start' and 'original_end')
+    while index < len_mappings:
+        mapping = mappings[index]
+        if mapping.original_start <= ol <= mapping.original_end:
             return index
         index += 1
     return index
