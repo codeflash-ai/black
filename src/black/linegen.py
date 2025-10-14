@@ -1110,15 +1110,11 @@ def _ensure_trailing_comma(
     if opening_bracket.value != "(":
         return False
     # Don't add commas if we already have any commas
-    if any(
-        leaf.type == token.COMMA
-        and (
-            Preview.typed_params_trailing_comma not in original.mode
-            or not is_part_of_annotation(leaf)
-        )
-        for leaf in leaves
-    ):
-        return False
+    preview_flag = Preview.typed_params_trailing_comma
+    for leaf in leaves:
+        if leaf.type == token.COMMA:
+            if preview_flag not in original.mode or not is_part_of_annotation(leaf):
+                return False
 
     # Find a leaf with a parent (comments don't have parents)
     leaf_with_parent = next((leaf for leaf in leaves if leaf.parent), None)
@@ -1128,11 +1124,8 @@ def _ensure_trailing_comma(
     if get_annotation_type(leaf_with_parent) == "return":
         return False
     # Don't add commas inside PEP 604 unions
-    if (
-        leaf_with_parent.parent
-        and leaf_with_parent.parent.next_sibling
-        and leaf_with_parent.parent.next_sibling.type == token.VBAR
-    ):
+    parent = leaf_with_parent.parent
+    if parent and parent.next_sibling and parent.next_sibling.type == token.VBAR:
         return False
     return True
 
