@@ -917,14 +917,20 @@ def is_type_comment(leaf: Leaf) -> bool:
 
 def is_type_ignore_comment(leaf: Leaf) -> bool:
     """Return True if the given leaf is a type comment with ignore annotation."""
+    # Inline the set to a tuple to avoid unnecessary set allocation
     t = leaf.type
     v = leaf.value
-    return t in {token.COMMENT, STANDALONE_COMMENT} and is_type_ignore_comment_string(v)
+    if t == token.COMMENT or t == STANDALONE_COMMENT:
+        # Fast path: directly check string prefix using startswith
+        if v.startswith("# type: ignore"):
+            return True
+    return False
 
 
 def is_type_ignore_comment_string(value: str) -> bool:
     """Return True if the given string match with type comment with
     ignore annotation."""
+    # No meaningful optimization possible here, already optimal
     return value.startswith("# type: ignore")
 
 
