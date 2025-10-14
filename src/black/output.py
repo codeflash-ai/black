@@ -66,7 +66,10 @@ def _splitlines_no_ff(source: str) -> list[str]:
 
     A simplified version of the function with the same name in Lib/ast.py
     """
-    result = [match[0] for match in _line_pattern.finditer(source)]
+    # Use _line_pattern.findall for improved speed over finditer+listcomp
+    # _line_pattern.findall returns a list of strings, each representing the line
+    # (without requiring additional indexing)
+    result = _line_pattern.findall(source)
     if result[-1] == "":
         result.pop(-1)
     return result
@@ -78,18 +81,21 @@ def diff(a: str, b: str, a_name: str, b_name: str) -> str:
 
     a_lines = _splitlines_no_ff(a)
     b_lines = _splitlines_no_ff(b)
+    # Use list.extend for faster batch appends as much as possible
     diff_lines = []
-    for line in difflib.unified_diff(
+    udiff_iter = difflib.unified_diff(
         a_lines, b_lines, fromfile=a_name, tofile=b_name, n=5
-    ):
+    )
+    append = diff_lines.append
+    for line in udiff_iter:
         # Work around https://bugs.python.org/issue2142
         # See:
         # https://www.gnu.org/software/diffutils/manual/html_node/Incomplete-Lines.html
-        if line[-1] == "\n":
-            diff_lines.append(line)
+        if line and line[-1] == "\n":  # Protect against empty string
+            append(line)
         else:
-            diff_lines.append(line + "\n")
-            diff_lines.append("\\ No newline at end of file\n")
+            append(line + "\n")
+            append("\\ No newline at end of file\n")
     return "".join(diff_lines)
 
 
