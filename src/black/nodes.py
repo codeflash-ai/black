@@ -784,10 +784,11 @@ def is_multiline_string(node: LN) -> bool:
 
 
 def is_parent_function_or_class(node: Node) -> bool:
-    assert node.type in {syms.suite, syms.simple_stmt}
+    # Avoid set creation for each call, compare directly
+    assert node.type == syms.suite or node.type == syms.simple_stmt
     assert node.parent is not None
-    # Note this works for suites / simple_stmts in async def as well
-    return node.parent.type in {syms.funcdef, syms.classdef}
+    parent_type = node.parent.type
+    return parent_type == syms.funcdef or parent_type == syms.classdef
 
 
 def is_function_or_class(node: Node) -> bool:
@@ -796,41 +797,65 @@ def is_function_or_class(node: Node) -> bool:
 
 def is_stub_suite(node: Node) -> bool:
     """Return True if `node` is a suite with a stub body."""
-    if node.parent is not None and not is_parent_function_or_class(node):
+    node_parent = node.parent
+    if node_parent is not None:
+        if not is_parent_function_or_class(node):
+            return False
+
+    # Check for any prefix (skip allocation if possible)
+    if node.prefix and node.prefix.strip():
         return False
 
-    # If there is a comment, we want to keep it.
-    if node.prefix.strip():
-        return False
-
+    # Faster direct children check
+    children = node.children
     if (
-        len(node.children) != 4
-        or node.children[0].type != token.NEWLINE
-        or node.children[1].type != token.INDENT
-        or node.children[3].type != token.DEDENT
+        len(children) != 4
+        or children[0].type != token.NEWLINE
+        or children[1].type != token.INDENT
+        or children[3].type != token.DEDENT
     ):
         return False
 
-    if node.children[3].prefix.strip():
+    # Check for prefix on dedent node
+    if children[3].prefix and children[3].prefix.strip():
         return False
 
-    return is_stub_body(node.children[2])
+    return is_stub_body(children[2])
 
 
 def is_stub_body(node: LN) -> bool:
     """Return True if `node` is a simple statement containing an ellipsis."""
-    if not isinstance(node, Node) or node.type != syms.simple_stmt:
+    # Avoid isinstance if possible, check quickly
+    if not (isinstance(node, Node) and node.type == syms.simple_stmt):
         return False
 
-    if len(node.children) != 2:
+    children = node.children
+    if len(children) != 2:
         return False
 
-    child = node.children[0]
+    child = children[0]
+    # Check prefix before isinstance (skip allocation if possible)
+    if child.prefix and child.prefix.strip():
+        return False
+
+    # Direct checks for ellipsis structure: atom with three DOTs
+    if child.type != syms.atom:
+        return False
+    atom_children = child.children
+    if len(atom_children) != 3:
+        return False
+
+    # Instead of all(leaf == Leaf(...)), check structure and .value
     return (
-        not child.prefix.strip()
-        and child.type == syms.atom
-        and len(child.children) == 3
-        and all(leaf == Leaf(token.DOT, ".") for leaf in child.children)
+        isinstance(atom_children[0], Leaf)
+        and atom_children[0].type == token.DOT
+        and atom_children[0].value == "."
+        and isinstance(atom_children[1], Leaf)
+        and atom_children[1].type == token.DOT
+        and atom_children[1].value == "."
+        and isinstance(atom_children[2], Leaf)
+        and atom_children[2].type == token.DOT
+        and atom_children[2].value == "."
     )
 
 
