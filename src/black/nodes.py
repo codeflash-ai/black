@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -660,8 +662,14 @@ def is_one_sequence_between(
 
 def is_walrus_assignment(node: LN) -> bool:
     """Return True iff `node` is of the shape ( test := test )"""
-    inner = unwrap_singleton_parenthesis(node)
-    return inner is not None and inner.type == syms.namedexpr_test
+    # Inlined unwrap_singleton_parenthesis to avoid call overhead and redundant len checks
+    children = node.children
+    if len(children) != 3:
+        return False
+    lpar, wrapped, rpar = children
+    if lpar.type != token.LPAR or rpar.type != token.RPAR:
+        return False
+    return wrapped.type == syms.namedexpr_test
 
 
 def is_simple_decorator_trailer(node: LN, last: bool = False) -> bool:
