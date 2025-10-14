@@ -826,12 +826,25 @@ def is_stub_body(node: LN) -> bool:
         return False
 
     child = node.children[0]
-    return (
-        not child.prefix.strip()
-        and child.type == syms.atom
-        and len(child.children) == 3
-        and all(leaf == Leaf(token.DOT, ".") for leaf in child.children)
-    )
+    if child.type != syms.atom or len(child.children) != 3:
+        return False
+
+    # Check each child directly instead of using all() with Leaf construction
+    child_children = child.children
+    if (
+        isinstance(child_children[0], Leaf)
+        and child_children[0].type == token.DOT
+        and child_children[0].value == "."
+        and isinstance(child_children[1], Leaf)
+        and child_children[1].type == token.DOT
+        and child_children[1].value == "."
+        and isinstance(child_children[2], Leaf)
+        and child_children[2].type == token.DOT
+        and child_children[2].value == "."
+    ):
+        return not child.prefix.strip()
+
+    return False
 
 
 def is_atom_with_invisible_parens(node: LN) -> bool:
