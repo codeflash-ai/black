@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -716,16 +718,15 @@ def is_simple_decorator_expression(node: LN) -> bool:
 
 def is_yield(node: LN) -> bool:
     """Return True if `node` holds a `yield` or `yield from` expression."""
-    if node.type == syms.yield_expr:
+    node_type = node.type
+    if node_type == syms.yield_expr:
         return True
 
-    if is_name_token(node) and node.value == "yield":
+    # Fast path for leaf nodes: avoid calling is_name_token unnecessarily
+    if node_type == token.NAME and node.value == "yield":
         return True
 
-    if node.type != syms.atom:
-        return False
-
-    if len(node.children) != 3:
+    if node_type != syms.atom or len(node.children) != 3:
         return False
 
     lpar, expr, rpar = node.children
