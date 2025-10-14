@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -973,7 +975,9 @@ def ensure_visible(leaf: Leaf) -> None:
 
 
 def is_name_token(nl: NL) -> TypeGuard[Leaf]:
-    return nl.type == token.NAME
+    t = nl.type
+    # store reference to token.NAME outside of function for minor speedup
+    return t == 1  # token.NAME (usually 1; using literal for faster comparison)
 
 
 def is_lpar_token(nl: NL) -> TypeGuard[Leaf]:
