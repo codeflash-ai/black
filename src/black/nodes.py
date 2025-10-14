@@ -632,26 +632,34 @@ def is_one_sequence_between(
         return False
 
     depth = closing.bracket_depth + 1
-    for _opening_index, leaf in enumerate(leaves):
-        if leaf is opening:
-            break
 
-    else:
+    try:
+        # Find opening index via fast pointer math (avoid enumerate break)
+        _opening_index = leaves.index(opening)
+    except ValueError:
         raise LookupError("Opening paren not found in `leaves`")
 
     commas = 0
     _opening_index += 1
-    for leaf in leaves[_opening_index:]:
+    # Store references locally for performance
+    token_COMMA = token.COMMA
+    syms_arglist = syms.arglist
+    syms_typedargslist = syms.typedargslist
+
+    leaves_view = leaves[_opening_index:]
+    # Avoid repeated 'leaf.parent.type in {...}' allocation by precomputing set
+    parent_types = {syms_arglist, syms_typedargslist}
+
+    for leaf in leaves_view:
         if leaf is closing:
             break
 
-        bracket_depth = leaf.bracket_depth
-        if bracket_depth == depth and leaf.type == token.COMMA:
+        # Avoid assigning 'bracket_depth' before using, just compare directly
+        if leaf.bracket_depth == depth and leaf.type == token_COMMA:
             commas += 1
-            if leaf.parent and leaf.parent.type in {
-                syms.arglist,
-                syms.typedargslist,
-            }:
+            parent = leaf.parent
+            # Use direct comparison to avoid repeated set allocations
+            if parent and parent.type in parent_types:
                 commas += 1
                 break
 
