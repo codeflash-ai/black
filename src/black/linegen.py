@@ -743,19 +743,18 @@ def should_split_funcdef_with_rhs(line: Line, mode: Mode) -> bool:
     """If a funcdef has a magic trailing comma in the return type, then we should first
     split the line with rhs to respect the comma.
     """
+    # Streamlined loop for efficiency
     return_type_leaves: list[Leaf] = []
     in_return_type = False
-
     for leaf in line.leaves:
-        if leaf.type == token.COLON:
+        ltype = leaf.type
+        if ltype == token.COLON:
             in_return_type = False
         if in_return_type:
             return_type_leaves.append(leaf)
-        if leaf.type == token.RARROW:
+        if ltype == token.RARROW:
             in_return_type = True
 
-    # using `bracket_split_build_line` will mess with whitespace, so we duplicate a
-    # couple lines from it.
     result = Line(mode=line.mode, depth=line.depth)
     leaves_to_track = get_leaves_inside_matching_brackets(return_type_leaves)
     for leaf in return_type_leaves:
@@ -764,9 +763,6 @@ def should_split_funcdef_with_rhs(line: Line, mode: Mode) -> bool:
             preformatted=True,
             track_bracket=id(leaf) in leaves_to_track,
         )
-
-    # we could also return true if the line is too long, and the return type is longer
-    # than the param list. Or if `should_split_rhs` returns True.
     return result.magic_trailing_comma is not None
 
 
