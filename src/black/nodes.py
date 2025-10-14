@@ -586,12 +586,13 @@ def is_docstring(node: NL, mode: Mode) -> bool:
 
 def is_empty_tuple(node: LN) -> bool:
     """Return True if `node` holds an empty tuple."""
-    return (
-        node.type == syms.atom
-        and len(node.children) == 2
-        and node.children[0].type == token.LPAR
-        and node.children[1].type == token.RPAR
-    )
+    children = node.children
+    if len(children) != 2:
+        return False
+    if node.type != syms.atom:
+        return False
+    first, second = children
+    return first.type == token.LPAR and second.type == token.RPAR
 
 
 def is_one_tuple(node: LN) -> bool:
