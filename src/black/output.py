@@ -66,8 +66,11 @@ def _splitlines_no_ff(source: str) -> list[str]:
 
     A simplified version of the function with the same name in Lib/ast.py
     """
-    result = [match[0] for match in _line_pattern.finditer(source)]
-    if result[-1] == "":
+    # Use findall instead of finditer for faster bulk extraction of first group.
+    # Avoid match object overhead by leveraging _line_pattern.findall, which
+    # directly returns the matched strings for the pattern's first group.
+    result = _line_pattern.findall(source)
+    if result and result[-1] == "":
         result.pop(-1)
     return result
 
