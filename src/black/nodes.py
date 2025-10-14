@@ -791,7 +791,7 @@ def is_parent_function_or_class(node: Node) -> bool:
 
 
 def is_function_or_class(node: Node) -> bool:
-    return node.type in {syms.funcdef, syms.classdef, syms.async_funcdef}
+    return node.type in (syms.funcdef, syms.classdef, syms.async_funcdef)
 
 
 def is_stub_suite(node: Node) -> bool:
