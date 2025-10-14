@@ -1192,7 +1192,6 @@ def dont_increase_indentation(split_func: Transformer) -> Transformer:
     This is a decorator over relevant split functions.
     """
 
-    @wraps(split_func)
     def split_wrapper(
         line: Line, features: Collection[Feature], mode: Mode
     ) -> Iterator[Line]:
