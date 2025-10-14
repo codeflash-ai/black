@@ -1204,9 +1204,12 @@ def dont_increase_indentation(split_func: Transformer) -> Transformer:
 
 
 def _get_last_non_comment_leaf(line: Line) -> Optional[int]:
-    for leaf_idx in range(len(line.leaves) - 1, 0, -1):
-        if line.leaves[leaf_idx].type != STANDALONE_COMMENT:
+    leaves = line.leaves
+    leaf_idx = len(leaves) - 1
+    while leaf_idx > 0:
+        if leaves[leaf_idx].type != STANDALONE_COMMENT:
             return leaf_idx
+        leaf_idx -= 1
     return None
 
 
