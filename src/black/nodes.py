@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -612,13 +614,24 @@ def is_one_tuple(node: LN) -> bool:
 
 def is_tuple_containing_walrus(node: LN) -> bool:
     """Return True if `node` holds a tuple that contains a walrus operator."""
-    if node.type != syms.atom:
+    # Inline unwrap_singleton_parenthesis logic for performance:
+    children = node.children
+    if node.type != syms.atom or len(children) != 3:
         return False
-    gexp = unwrap_singleton_parenthesis(node)
-    if gexp is None or gexp.type != syms.testlist_gexp:
+    lpar, wrapped, rpar = children
+    if not (lpar.type == token.LPAR and rpar.type == token.RPAR):
+        return False
+    # Now wrapped is what unwrap_singleton_parenthesis would return
+    gexp = wrapped
+    if gexp.type != syms.testlist_gexp:
         return False
 
-    return any(child.type == syms.namedexpr_test for child in gexp.children)
+    # Scan children manually: faster than generator + any
+    ntest = syms.namedexpr_test
+    for child in gexp.children:
+        if child.type == ntest:
+            return True
+    return False
 
 
 def is_one_sequence_between(
