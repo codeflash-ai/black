@@ -5,6 +5,7 @@ blib2to3 Node/Leaf transformation-related utility functions.
 import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
+from typing_extensions import TypeGuard
 
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
@@ -703,14 +704,18 @@ def is_simple_decorator_expression(node: LN) -> bool:
         return True
     if node.type == syms.power:
         if node.children:
-            return (
+            # Use generator comprehensions instead of map for efficiency/readability
+            if (
                 node.children[0].type == token.NAME
-                and all(map(is_simple_decorator_trailer, node.children[1:-1]))
+                and all(
+                    is_simple_decorator_trailer(child) for child in node.children[1:-1]
+                )
                 and (
                     len(node.children) < 2
                     or is_simple_decorator_trailer(node.children[-1], last=True)
                 )
-            )
+            ):
+                return True
     return False
 
 
