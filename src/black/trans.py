@@ -38,6 +38,30 @@ from black.strings import (
 from blib2to3.pgen2 import token
 from blib2to3.pytree import Leaf, Node
 
+_NAME = token.NAME
+
+_DOT = token.DOT
+
+_RPAR = token.RPAR
+
+_RSQB = token.RSQB
+
+_LPAR = token.LPAR
+
+_LSQB = token.LSQB
+
+past_is_dot = {_NAME}
+
+past_is_rpar_rsqb = {_RPAR, _RSQB}
+
+past_is_lpar_lsqb = {_LPAR, _LSQB}
+
+current_for_dot = {_DOT}
+
+current_for_rbrackets = {_RSQB, _RPAR}
+
+current_for_lbrackets = {_NAME, _LPAR, _LSQB}
+
 
 class CannotTransform(Exception):
     """Base class for errors raised by Transformers."""
@@ -170,16 +194,34 @@ def handle_is_simple_look_up_prev(line: Line, index: int, disallowed: set[int]) 
     to determine the bracket or parenthesis belong to the single expression.
     """
     contains_disallowed = False
-    chain = []
+
+    # Instead of constructing the whole chain, just track the minimum needed window
+    # Use a fixed window of max size 2 (store previous and current)
+    prev_leaf = None
 
     while 0 <= index < len(line.leaves):
         current = line.leaves[index]
-        chain.append(current)
         if not contains_disallowed and current.type in disallowed:
             contains_disallowed = True
-        if not is_expression_chained(chain):
-            return not contains_disallowed
 
+        if prev_leaf is not None:
+            past_leaf = prev_leaf
+            current_leaf = current
+
+            # Inline is_expression_chained for performance, using local consts
+            if past_leaf.type == _NAME:
+                if current_leaf.type not in current_for_dot:
+                    return not contains_disallowed
+            elif past_leaf.type in past_is_rpar_rsqb:
+                if current_leaf.type not in current_for_rbrackets:
+                    return not contains_disallowed
+            elif past_leaf.type in past_is_lpar_lsqb:
+                if current_leaf.type not in current_for_lbrackets:
+                    return not contains_disallowed
+            else:
+                return not contains_disallowed
+        # Advance window
+        prev_leaf = current
         index -= 1
 
     return True
