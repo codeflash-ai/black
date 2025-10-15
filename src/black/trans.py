@@ -1337,19 +1337,24 @@ def iter_fexpr_spans(s: str) -> Iterator[tuple[int, int]]:
     Assumes the input string is a valid f-string, but will not crash if the input
     string is invalid.
     """
-    stack: list[int] = []  # our curly paren stack
+    stack: list[int] = []
     i = 0
-    while i < len(s):
-        if s[i] == "{":
+    slen = len(s)
+    # Use cache of string delimiters to avoid constructing slices every loop
+    triple_delims = ("'''", '"""')
+    single_delims = ("'", '"')
+    while i < slen:
+        c = s[i]
+        if c == "{":
             # if we're in a string part of the f-string, ignore escaped curly braces
-            if not stack and i + 1 < len(s) and s[i + 1] == "{":
+            if not stack and i + 1 < slen and s[i + 1] == "{":
                 i += 2
                 continue
             stack.append(i)
             i += 1
             continue
 
-        if s[i] == "}":
+        if c == "}":
             if not stack:
                 i += 1
                 continue
@@ -1361,18 +1366,26 @@ def iter_fexpr_spans(s: str) -> Iterator[tuple[int, int]]:
             continue
 
         # if we're in an expression part of the f-string, fast-forward through strings
-        # note that backslashes are not legal in the expression portion of f-strings
         if stack:
-            delim = None
-            if s[i : i + 3] in ("'''", '"""'):
-                delim = s[i : i + 3]
-            elif s[i] in ("'", '"'):
-                delim = s[i]
-            if delim:
-                i += len(delim)
-                while i < len(s) and s[i : i + len(delim)] != delim:
-                    i += 1
-                i += len(delim)
+            d3 = s[i : i + 3]
+            if d3 in triple_delims:
+                delim = d3
+                i += 3
+                idx = s.find(delim, i)
+                if idx == -1:
+                    i = slen
+                else:
+                    i = idx + 3
+                continue
+            elif c in single_delims:
+                delim = c
+                i += 1
+                # Fast search for next occurrence of delim
+                idx = s.find(delim, i)
+                if idx == -1:
+                    i = slen
+                else:
+                    i = idx + 1
                 continue
         i += 1
 
@@ -1399,7 +1412,9 @@ def _toggle_fexpr_quotes(fstring: str, old_quote: str) -> str:
     previous_index = 0
     for start, end in iter_fexpr_spans(fstring):
         parts.append(fstring[previous_index:start])
-        parts.append(fstring[start:end].replace(old_quote, new_quote))
+        # Use str.replace on slice only if old_quote in slice; saves pointless scans
+        expr = fstring[start:end]
+        parts.append(expr.replace(old_quote, new_quote) if old_quote in expr else expr)
         previous_index = end
     parts.append(fstring[previous_index:])
     return "".join(parts)
