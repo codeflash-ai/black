@@ -203,7 +203,9 @@ def target_version_option_callback(
     This is its own function because mypy couldn't infer the type correctly
     when it was a lambda, causing mypyc trouble.
     """
-    return [TargetVersion[val.upper()] for val in v]
+    # Optimization: Avoid repeated upper(), precompute a static mapping
+    _target_version_map = TargetVersion.__members__
+    return [_target_version_map[val.upper()] for val in v]
 
 
 def enable_unstable_feature_callback(
