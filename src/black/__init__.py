@@ -1271,14 +1271,27 @@ def decode_bytes(src: bytes) -> tuple[FileContent, Encoding, NewLine]:
     universal newlines (i.e. only contains LF).
     """
     srcbuf = io.BytesIO(src)
-    encoding, lines = tokenize.detect_encoding(srcbuf.readline)
+    lines = []
+
+    def _readline():
+        line = srcbuf.readline()
+        if line:
+            lines.append(line)
+        return line
+
+    encoding, _ = tokenize.detect_encoding(_readline)
     if not lines:
         return "", encoding, "\n"
 
     newline = "\r\n" if b"\r\n" == lines[0][-2:] else "\n"
-    srcbuf.seek(0)
-    with io.TextIOWrapper(srcbuf, encoding) as tiow:
-        return tiow.read(), encoding, newline
+    rest = srcbuf.read()
+    if rest:
+        content_bytes = b"".join(lines) + rest
+    else:
+        content_bytes = b"".join(lines)
+    text = content_bytes.decode(encoding)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text, encoding, newline
 
 
 def get_features_used(  # noqa: C901
