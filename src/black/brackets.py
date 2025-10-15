@@ -145,7 +145,14 @@ class BracketTracker:
         Values are consistent with what `is_split_*_delimiter()` return.
         Raises ValueError on no delimiters.
         """
-        return max(v for k, v in self.delimiters.items() if k not in exclude)
+        # Convert exclude to a set to speed up containment checks if exclude is not already a set and is not empty
+        if exclude:
+            exclude_set = set(exclude)
+            items = (v for k, v in self.delimiters.items() if k not in exclude_set)
+        else:
+            # Avoid the not-in check if exclude is empty (common case)
+            items = self.delimiters.values()
+        return max(items)
 
     def delimiter_count_with_priority(self, priority: Priority = 0) -> int:
         """Return the number of delimiters with the given `priority`.
