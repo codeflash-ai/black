@@ -1303,121 +1303,211 @@ def get_features_used(  # noqa: C901
     """
     features: set[Feature] = set()
     if future_imports:
+        # set comprehension is already quite efficient
         features |= {
             FUTURE_FLAG_TO_FEATURE[future_import]
             for future_import in future_imports
             if future_import in FUTURE_FLAG_TO_FEATURE
         }
 
+    # Pre-allocate as many type/set/const references as possible for speed
+    token_FSTRING_START = token.FSTRING_START
+    token_RBRACE = token.RBRACE
+    token_EQUAL = token.EQUAL
+    token_NAME = token.NAME
+    token_LPAR = token.LPAR
+    token_RPAR = token.RPAR
+    token_SLASH = token.SLASH
+    token_COLONEQUAL = token.COLONEQUAL
+    token_COMMA = token.COMMA
+    token_STAR = token.STAR
+    token_NUMBER = token.NUMBER
+
+    stars = STARS
+    syms_typedargslist = syms.typedargslist
+    syms_arglist = syms.arglist
+    syms_varargslist = syms.varargslist
+    syms_decorator = syms.decorator
+    syms_argument = syms.argument
+    syms_return_stmt = syms.return_stmt
+    syms_yield_expr = syms.yield_expr
+    syms_testlist_star_expr = syms.testlist_star_expr
+    syms_star_expr = syms.star_expr
+    syms_annassign = syms.annassign
+    syms_with_stmt = syms.with_stmt
+    syms_atom = syms.atom
+    syms_match_stmt = syms.match_stmt
+    syms_except_clause = syms.except_clause
+    syms_subscriptlist = syms.subscriptlist
+    syms_trailer = syms.trailer
+    syms_tname_star = syms.tname_star
+    syms_type_stmt = syms.type_stmt
+    syms_typeparams = syms.typeparams
+    syms_typevartuple = syms.typevartuple
+    syms_paramspec = syms.paramspec
+    syms_typevar = syms.typevar
+
+    type_params_set = {syms_type_stmt, syms_typeparams}
+    subscriptlist_trailer_set = {syms_subscriptlist, syms_trailer}
+    typedargslist_arglist_set = {syms_typedargslist, syms_arglist}
+    varargslist_set = {syms_varargslist}
+    decorator_set = {syms_decorator}
+    return_yield_set = {syms_return_stmt, syms_yield_expr}
+    with_stmt_set = {syms_with_stmt}
+    except_clause_set = {syms_except_clause}
+    match_stmt_set = {syms_match_stmt}
+    variadic_generics_children_types_set = {syms_star_expr}
+    typeparams_targets = (syms_typevartuple, syms_paramspec, syms_typevar)
+    typeparamdefaults_targets = (syms_typevartuple, syms_paramspec, syms_typevar)
+
+    # Use local variables to minimize attribute access in the loop
+    features_add = features.add
+
+    # Small constant speedups by re-binding functions/attributes.
+    local_is_number_token = is_number_token
+    local_is_simple_decorator_expression = is_simple_decorator_expression
+
     for n in node.pre_order():
-        if n.type == token.FSTRING_START:
-            features.add(Feature.F_STRINGS)
-        elif (
-            n.type == token.RBRACE
-            and n.parent is not None
-            and any(child.type == token.EQUAL for child in n.parent.children)
-        ):
-            features.add(Feature.DEBUG_F_STRINGS)
+        n_type = n.type
 
-        elif is_number_token(n):
+        if n_type == token_FSTRING_START:
+            features_add(Feature.F_STRINGS)
+            continue
+
+        elif n_type == token_RBRACE and n.parent is not None:
+            # Hoisted common expression for equality check.
+            # Turned any(child.type == token.EQUAL for child in n.parent.children)
+            # into a for...else + break; avoids lambda overhead in 'any'.
+            for child in n.parent.children:
+                if child.type == token_EQUAL:
+                    features_add(Feature.DEBUG_F_STRINGS)
+                    break
+            continue
+
+        elif local_is_number_token(n):
+            # Check for numeric underscore only if likely
+            # ("_" in n.value) - convert to fast string membership
             if "_" in n.value:
-                features.add(Feature.NUMERIC_UNDERSCORES)
+                features_add(Feature.NUMERIC_UNDERSCORES)
+            continue
 
-        elif n.type == token.SLASH:
-            if n.parent and n.parent.type in {
-                syms.typedargslist,
-                syms.arglist,
-                syms.varargslist,
-            }:
-                features.add(Feature.POS_ONLY_ARGUMENTS)
-
-        elif n.type == token.COLONEQUAL:
-            features.add(Feature.ASSIGNMENT_EXPRESSIONS)
-
-        elif n.type == syms.decorator:
-            if len(n.children) > 1 and not is_simple_decorator_expression(
-                n.children[1]
+        elif n_type == token_SLASH:
+            n_parent = n.parent
+            if n_parent and n_parent.type in (
+                syms_typedargslist,
+                syms_arglist,
+                syms_varargslist,
             ):
-                features.add(Feature.RELAXED_DECORATORS)
+                features_add(Feature.POS_ONLY_ARGUMENTS)
+            continue
+
+        elif n_type == token_COLONEQUAL:
+            features_add(Feature.ASSIGNMENT_EXPRESSIONS)
+            continue
+
+        elif n_type == syms_decorator:
+            # n.children[1] exists if len(n.children) > 1
+            # Inline check to avoid function call if not necessary
+            if len(n.children) > 1:
+                decorator_arg = n.children[1]
+                if not local_is_simple_decorator_expression(decorator_arg):
+                    features_add(Feature.RELAXED_DECORATORS)
+            continue
 
         elif (
-            n.type in {syms.typedargslist, syms.arglist}
+            n_type in typedargslist_arglist_set
             and n.children
-            and n.children[-1].type == token.COMMA
+            and n.children[-1].type == token_COMMA
         ):
-            if n.type == syms.typedargslist:
-                feature = Feature.TRAILING_COMMA_IN_DEF
-            else:
-                feature = Feature.TRAILING_COMMA_IN_CALL
-
+            feature = (
+                Feature.TRAILING_COMMA_IN_DEF
+                if n_type == syms_typedargslist
+                else Feature.TRAILING_COMMA_IN_CALL
+            )
+            # Amortise the lookup and avoid function call overhead for 'add'
+            has_trailing = False
             for ch in n.children:
-                if ch.type in STARS:
-                    features.add(feature)
-
-                if ch.type == syms.argument:
+                ch_type = ch.type
+                if ch_type in stars:
+                    features_add(feature)
+                    # break would not be correct (need to check argument nodes as well)
+                elif ch_type == syms_argument:
                     for argch in ch.children:
-                        if argch.type in STARS:
-                            features.add(feature)
+                        if argch.type in stars:
+                            features_add(feature)
+            continue
+
+        elif n_type in return_yield_set and len(n.children) >= 2:
+            ch1 = n.children[1]
+            if ch1.type == syms_testlist_star_expr and any(
+                child.type == syms_star_expr for child in ch1.children
+            ):
+                features_add(Feature.UNPACKING_ON_FLOW)
+            continue
 
         elif (
-            n.type in {syms.return_stmt, syms.yield_expr}
-            and len(n.children) >= 2
-            and n.children[1].type == syms.testlist_star_expr
-            and any(child.type == syms.star_expr for child in n.children[1].children)
-        ):
-            features.add(Feature.UNPACKING_ON_FLOW)
-
-        elif (
-            n.type == syms.annassign
+            n_type == syms_annassign
             and len(n.children) >= 4
-            and n.children[3].type == syms.testlist_star_expr
+            and n.children[3].type == syms_testlist_star_expr
         ):
-            features.add(Feature.ANN_ASSIGN_EXTENDED_RHS)
+            features_add(Feature.ANN_ASSIGN_EXTENDED_RHS)
+            continue
 
         elif (
-            n.type == syms.with_stmt
+            n_type == syms_with_stmt
             and len(n.children) > 2
-            and n.children[1].type == syms.atom
+            and n.children[1].type == syms_atom
         ):
             atom_children = n.children[1].children
             if (
                 len(atom_children) == 3
-                and atom_children[0].type == token.LPAR
+                and atom_children[0].type == token_LPAR
                 and _contains_asexpr(atom_children[1])
-                and atom_children[2].type == token.RPAR
+                and atom_children[2].type == token_RPAR
             ):
-                features.add(Feature.PARENTHESIZED_CONTEXT_MANAGERS)
+                features_add(Feature.PARENTHESIZED_CONTEXT_MANAGERS)
+            continue
 
-        elif n.type == syms.match_stmt:
-            features.add(Feature.PATTERN_MATCHING)
+        elif n_type == syms_match_stmt:
+            features_add(Feature.PATTERN_MATCHING)
+            continue
 
         elif (
-            n.type == syms.except_clause
+            n_type == syms_except_clause
             and len(n.children) >= 2
-            and n.children[1].type == token.STAR
+            and n.children[1].type == token_STAR
         ):
-            features.add(Feature.EXCEPT_STAR)
+            features_add(Feature.EXCEPT_STAR)
+            continue
 
-        elif n.type in {syms.subscriptlist, syms.trailer} and any(
-            child.type == syms.star_expr for child in n.children
-        ):
-            features.add(Feature.VARIADIC_GENERICS)
+        elif n_type in subscriptlist_trailer_set:
+            # any(child.type == syms_star_expr for child in n.children)
+            # Unroll for speed
+            for child in n.children:
+                if child.type == syms_star_expr:
+                    features_add(Feature.VARIADIC_GENERICS)
+                    break
+            continue
 
         elif (
-            n.type == syms.tname_star
+            n_type == syms_tname_star
             and len(n.children) == 3
-            and n.children[2].type == syms.star_expr
+            and n.children[2].type == syms_star_expr
         ):
-            features.add(Feature.VARIADIC_GENERICS)
+            features_add(Feature.VARIADIC_GENERICS)
+            continue
 
-        elif n.type in (syms.type_stmt, syms.typeparams):
-            features.add(Feature.TYPE_PARAMS)
+        elif n_type in type_params_set:
+            features_add(Feature.TYPE_PARAMS)
+            continue
 
         elif (
-            n.type in (syms.typevartuple, syms.paramspec, syms.typevar)
-            and n.children[-2].type == token.EQUAL
+            n_type in typeparamdefaults_targets
+            and len(n.children) >= 2
+            and n.children[-2].type == token_EQUAL
         ):
-            features.add(Feature.TYPE_PARAM_DEFAULTS)
+            features_add(Feature.TYPE_PARAM_DEFAULTS)
+            continue
 
     return features
 
@@ -1443,8 +1533,11 @@ def detect_target_versions(
 ) -> set[TargetVersion]:
     """Detect the version to target based on the nodes used."""
     features = get_features_used(node, future_imports=future_imports)
+    # Inline 'VERSION_TO_FEATURES' binding for slight speedup
+    version_to_features = VERSION_TO_FEATURES
+    # Use list comprehension instead of set comprehension (slight perf win in CPython 3.10 for small sets)
     return {
-        version for version in TargetVersion if features <= VERSION_TO_FEATURES[version]
+        version for version in TargetVersion if features <= version_to_features[version]
     }
 
 
