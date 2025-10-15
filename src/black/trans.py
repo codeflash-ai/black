@@ -142,16 +142,20 @@ def hug_power_op(
 def original_is_simple_lookup_func(
     line: Line, index: int, step: Literal[1, -1]
 ) -> bool:
+    name_dot_types = {token.NAME, token.DOT}
     if step == -1:
         disallowed = {token.RPAR, token.RSQB}
     else:
         disallowed = {token.LPAR, token.LSQB}
 
-    while 0 <= index < len(line.leaves):
-        current = line.leaves[index]
+    leaves = line.leaves
+    length = len(leaves)
+
+    while 0 <= index < length:
+        current = leaves[index]
         if current.type in disallowed:
             return False
-        if current.type not in {token.NAME, token.DOT} or current.value == "for":
+        if current.type not in name_dot_types or current.value == "for":
             # If the current token isn't disallowed, we'll assume this is
             # simple as only the disallowed tokens are semantically
             # attached to this lookup expression we're checking. Also,
