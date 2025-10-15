@@ -38,6 +38,26 @@ from black.strings import (
 from blib2to3.pgen2 import token
 from blib2to3.pytree import Leaf, Node
 
+_DOT = token.DOT
+
+_NAME = token.NAME
+
+_LPAR = token.LPAR
+
+_RPAR = token.RPAR
+
+_LSQB = token.LSQB
+
+_RSQB = token.RSQB
+
+_PAST_RPAR_RSQB = {_RPAR, _RSQB}
+
+_PAST_LPAR_LSQB = {_LPAR, _LSQB}
+
+_CURR_LPAR_LSQB_NAME = {_NAME, _LPAR, _LSQB}
+
+_CURR_RPAR_RSQB = {_RSQB, _RPAR}
+
 
 class CannotTransform(Exception):
     """Base class for errors raised by Transformers."""
@@ -170,18 +190,36 @@ def handle_is_simple_look_up_prev(line: Line, index: int, disallowed: set[int]) 
     to determine the bracket or parenthesis belong to the single expression.
     """
     contains_disallowed = False
-    chain = []
-
-    while 0 <= index < len(line.leaves):
-        current = line.leaves[index]
-        chain.append(current)
-        if not contains_disallowed and current.type in disallowed:
+    n_leaves = len(line.leaves)
+    # Instead of building up a list (O(N) append/copy), just track the indices, and pass only what is needed
+    # Save memory - pass slices instead of growing lists
+    while 0 <= index < n_leaves:
+        # Only 2 most recent leaves are ever needed
+        curr = line.leaves[index]
+        if not contains_disallowed and curr.type in disallowed:
             contains_disallowed = True
-        if not is_expression_chained(chain):
+
+        # Only need last two leaves for checking
+        prev_idx = index - 1
+        if prev_idx < 0:
+            # Only one leaf in the chain, always chained by definition
+            return not contains_disallowed
+        prev = line.leaves[prev_idx]
+
+        # Inlined `is_expression_chained([prev, curr])` for speed; unroll logic
+        pt, ct = prev.type, curr.type
+        if pt == _NAME:
+            chained = ct == _DOT
+        elif pt in _PAST_RPAR_RSQB:
+            chained = ct in _CURR_RPAR_RSQB
+        elif pt in _PAST_LPAR_LSQB:
+            chained = ct in _CURR_LPAR_LSQB_NAME
+        else:
+            chained = False
+        if not chained:
             return not contains_disallowed
 
         index -= 1
-
     return True
 
 
@@ -2408,41 +2446,47 @@ class StringParser:
         Returns:
             True iff @leaf is a part of the string's trailer.
         """
+        # Cache frequently accessed constants/attributes for speed
+        LPAR = token.LPAR
+        RPAR = token.RPAR
+        current_state = self._state
+        unmatched_lpars = self._unmatched_lpars
+        DONE = self.DONE
+        DEFAULT_TOKEN = self.DEFAULT_TOKEN
+        goto = self._goto
+
         # We ignore empty LPAR or RPAR leaves.
         if is_empty_par(leaf):
             return True
 
         next_token = leaf.type
-        if next_token == token.LPAR:
-            self._unmatched_lpars += 1
 
-        current_state = self._state
+        if next_token == LPAR:
+            unmatched_lpars += 1
 
         # The LPAR parser state is a special case. We will return True until we
         # find the matching RPAR token.
         if current_state == self.LPAR:
-            if next_token == token.RPAR:
-                self._unmatched_lpars -= 1
-                if self._unmatched_lpars == 0:
+            if next_token == RPAR:
+                unmatched_lpars -= 1
+                if unmatched_lpars == 0:
                     self._state = self.RPAR
+            self._unmatched_lpars = unmatched_lpars
         # Otherwise, we use a lookup table to determine the next state.
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
+            key = (current_state, next_token)
+            if key in goto:
+                self._state = goto[key]
             else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
+                default_key = (current_state, DEFAULT_TOKEN)
+                if default_key in goto:
+                    self._state = goto[default_key]
                 else:
                     raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
 
-            if self._state == self.DONE:
+            if self._state == DONE:
                 return False
+            self._unmatched_lpars = unmatched_lpars  # always update
 
         return True
 
