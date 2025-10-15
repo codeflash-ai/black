@@ -193,19 +193,28 @@ def handle_is_simple_lookup_forward(
     This function is simplified to keep consistent with the prior logic and the forward
     case are more straightforward and do not need to care about chained expressions.
     """
-    while 0 <= index < len(line.leaves):
-        current = line.leaves[index]
-        if current.type in disallowed:
+    leaves = line.leaves  # Local variable alias (faster than attr lookup)
+    disallowed_types = disallowed  # Local variable alias (no change in semantics)
+
+    NAME = token.NAME  # Local alias (slightly faster lookup)
+    DOT = token.DOT  # Local alias
+
+    # Precompute {token.NAME, token.DOT} outside of loop for faster membership
+    valid_types = (NAME, DOT)
+
+    leaves_len = len(leaves)  # Precompute bounds for faster checks
+    while 0 <= index < leaves_len:
+        current = leaves[index]
+        ctype = current.type
+        if ctype in disallowed_types:
             return False
-        if current.type not in {token.NAME, token.DOT} or (
-            current.type == token.NAME and current.value == "for"
-        ):
+        # Avoid set allocation on each loop; membership as tuple is faster
+        if ctype not in valid_types or (ctype == NAME and current.value == "for"):
             # If the current token isn't disallowed, we'll assume this is simple as
             # only the disallowed tokens are semantically attached to this lookup
             # expression we're checking. Also, stop early if we hit the 'for' bit
             # of a comprehension.
             return True
-
         index += 1
 
     return True
@@ -2408,41 +2417,47 @@ class StringParser:
         Returns:
             True iff @leaf is a part of the string's trailer.
         """
+        # Cache frequently accessed constants/attributes for speed
+        LPAR = token.LPAR
+        RPAR = token.RPAR
+        current_state = self._state
+        unmatched_lpars = self._unmatched_lpars
+        DONE = self.DONE
+        DEFAULT_TOKEN = self.DEFAULT_TOKEN
+        goto = self._goto
+
         # We ignore empty LPAR or RPAR leaves.
         if is_empty_par(leaf):
             return True
 
         next_token = leaf.type
-        if next_token == token.LPAR:
-            self._unmatched_lpars += 1
 
-        current_state = self._state
+        if next_token == LPAR:
+            unmatched_lpars += 1
 
         # The LPAR parser state is a special case. We will return True until we
         # find the matching RPAR token.
         if current_state == self.LPAR:
-            if next_token == token.RPAR:
-                self._unmatched_lpars -= 1
-                if self._unmatched_lpars == 0:
+            if next_token == RPAR:
+                unmatched_lpars -= 1
+                if unmatched_lpars == 0:
                     self._state = self.RPAR
+            self._unmatched_lpars = unmatched_lpars
         # Otherwise, we use a lookup table to determine the next state.
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
+            key = (current_state, next_token)
+            if key in goto:
+                self._state = goto[key]
             else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
+                default_key = (current_state, DEFAULT_TOKEN)
+                if default_key in goto:
+                    self._state = goto[default_key]
                 else:
                     raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
 
-            if self._state == self.DONE:
+            if self._state == DONE:
                 return False
+            self._unmatched_lpars = unmatched_lpars  # always update
 
         return True
 
