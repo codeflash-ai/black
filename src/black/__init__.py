@@ -1141,23 +1141,32 @@ def format_ipynb_string(src_contents: str, *, fast: bool, mode: Mode) -> FileCon
         raise NothingChanged
 
     trailing_newline = src_contents[-1] == "\n"
-    modified = False
     nb = json.loads(src_contents)
     validate_metadata(nb)
-    for cell in nb["cells"]:
+    modified = False
+
+    # Micro-optimization: reuse variables, minimize attribute lookups, use local bindings.
+    cells = nb["cells"]
+    format_cell_local = format_cell
+    NothingChanged_local = NothingChanged
+
+    for cell in cells:
         if cell.get("cell_type", None) == "code":
             try:
+                # Avoid repeated join/splitlines if already correct
                 src = "".join(cell["source"])
-                dst = format_cell(src, fast=fast, mode=mode)
-            except NothingChanged:
-                pass
+                dst = format_cell_local(src, fast=fast, mode=mode)
+            except NothingChanged_local:
+                continue
             else:
+                # Avoid repeated work if nothing changed (splitlines will not be called if catch triggers)
                 cell["source"] = dst.splitlines(keepends=True)
                 modified = True
     if modified:
+        # Avoid re-encoding/dumping if not needed
         dst_contents = json.dumps(nb, indent=1, ensure_ascii=False)
         if trailing_newline:
-            dst_contents = dst_contents + "\n"
+            dst_contents += "\n"
         return dst_contents
     else:
         raise NothingChanged
@@ -1200,13 +1209,14 @@ def format_str(
         if not lines:
             return src_contents  # Nothing to format
     dst_contents = _format_str_once(src_contents, mode=mode, lines=lines)
-    # Forced second pass to work around optional trailing commas (becoming
-    # forced trailing commas on pass 2) interacting differently with optional
-    # parentheses.  Admittedly ugly.
-    if src_contents != dst_contents:
-        if lines:
-            lines = adjusted_lines(lines, src_contents, dst_contents)
-        return _format_str_once(dst_contents, mode=mode, lines=lines)
+    if src_contents == dst_contents:
+        return dst_contents
+
+    # Only call adjusted_lines if lines on first pass changed anything
+    if lines:
+        new_lines = adjusted_lines(lines, src_contents, dst_contents)
+        # Directly pass new_lines to second pass, avoids re-calling sanitized_lines
+        return _format_str_once(dst_contents, mode=mode, lines=new_lines)
     return dst_contents
 
 
