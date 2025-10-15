@@ -38,6 +38,18 @@ from black.strings import (
 from blib2to3.pgen2 import token
 from blib2to3.pytree import Leaf, Node
 
+_TOKEN_DOT = token.DOT
+
+_TOKEN_NAME = token.NAME
+
+_TOKEN_RPAR = token.RPAR
+
+_TOKEN_RSQB = token.RSQB
+
+_TOKEN_LPAR = token.LPAR
+
+_TOKEN_LSQB = token.LSQB
+
 
 class CannotTransform(Exception):
     """Base class for errors raised by Transformers."""
@@ -221,15 +233,20 @@ def is_expression_chained(chained_leaves: list[Leaf]) -> bool:
 
     current_leaf = chained_leaves[-1]
     past_leaf = chained_leaves[-2]
+    past_type = past_leaf.type
+    current_type = current_leaf.type
 
-    if past_leaf.type == token.NAME:
-        return current_leaf.type in {token.DOT}
-    elif past_leaf.type in {token.RPAR, token.RSQB}:
-        return current_leaf.type in {token.RSQB, token.RPAR}
-    elif past_leaf.type in {token.LPAR, token.LSQB}:
-        return current_leaf.type in {token.NAME, token.LPAR, token.LSQB}
-    else:
-        return False
+    if past_type == _TOKEN_NAME:
+        return current_type == _TOKEN_DOT
+    if past_type == _TOKEN_RPAR or past_type == _TOKEN_RSQB:
+        return current_type == _TOKEN_RSQB or current_type == _TOKEN_RPAR
+    if past_type == _TOKEN_LPAR or past_type == _TOKEN_LSQB:
+        return (
+            current_type == _TOKEN_NAME
+            or current_type == _TOKEN_LPAR
+            or current_type == _TOKEN_LSQB
+        )
+    return False
 
 
 class StringTransformer(ABC):
@@ -2408,41 +2425,47 @@ class StringParser:
         Returns:
             True iff @leaf is a part of the string's trailer.
         """
+        # Cache frequently accessed constants/attributes for speed
+        LPAR = token.LPAR
+        RPAR = token.RPAR
+        current_state = self._state
+        unmatched_lpars = self._unmatched_lpars
+        DONE = self.DONE
+        DEFAULT_TOKEN = self.DEFAULT_TOKEN
+        goto = self._goto
+
         # We ignore empty LPAR or RPAR leaves.
         if is_empty_par(leaf):
             return True
 
         next_token = leaf.type
-        if next_token == token.LPAR:
-            self._unmatched_lpars += 1
 
-        current_state = self._state
+        if next_token == LPAR:
+            unmatched_lpars += 1
 
         # The LPAR parser state is a special case. We will return True until we
         # find the matching RPAR token.
         if current_state == self.LPAR:
-            if next_token == token.RPAR:
-                self._unmatched_lpars -= 1
-                if self._unmatched_lpars == 0:
+            if next_token == RPAR:
+                unmatched_lpars -= 1
+                if unmatched_lpars == 0:
                     self._state = self.RPAR
+            self._unmatched_lpars = unmatched_lpars
         # Otherwise, we use a lookup table to determine the next state.
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
+            key = (current_state, next_token)
+            if key in goto:
+                self._state = goto[key]
             else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
+                default_key = (current_state, DEFAULT_TOKEN)
+                if default_key in goto:
+                    self._state = goto[default_key]
                 else:
                     raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
 
-            if self._state == self.DONE:
+            if self._state == DONE:
                 return False
+            self._unmatched_lpars = unmatched_lpars  # always update
 
         return True
 
