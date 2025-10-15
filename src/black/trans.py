@@ -412,10 +412,7 @@ class CustomSplitMapMixin:
         """
         key = self._get_key(string)
 
-        custom_splits = self._CUSTOM_SPLIT_MAP[key]
-        del self._CUSTOM_SPLIT_MAP[key]
-
-        return list(custom_splits)
+        return list(self._CUSTOM_SPLIT_MAP.pop(key, ()))
 
     def has_custom_splits(self, string: str) -> bool:
         """
