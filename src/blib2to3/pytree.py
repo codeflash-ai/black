@@ -303,9 +303,16 @@ class Node(Base):
 
     def pre_order(self) -> Iterator[NL]:
         """Return a pre-order iterator for the tree."""
-        yield self
-        for child in self.children:
-            yield from child.pre_order()
+        # Non-recursive, stack-based implementation for efficiency
+        stack = [self]
+        while stack:
+            node = stack.pop()
+            yield node
+            # Avoid unnecessary list allocation on no children
+            children = getattr(node, "children", None)
+            if children:
+                # Push children in reverse order for correct pre-order traversal
+                stack.extend(reversed(children))
 
     @property
     def prefix(self) -> str:
