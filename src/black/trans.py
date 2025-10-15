@@ -1121,10 +1121,9 @@ class BaseStringSplitter(StringTransformer):
             return match_result
 
         string_indices = match_result.ok()
-        assert len(string_indices) == 1, (
-            f"{self.__class__.__name__} should only find one match at a time, found"
-            f" {len(string_indices)}"
-        )
+        assert (
+            len(string_indices) == 1
+        ), f"{self.__class__.__name__} should only find one match at a time, found {len(string_indices)}"
         string_idx = string_indices[0]
         vresult = self._validate(line, string_idx)
         if isinstance(vresult, Err):
@@ -1503,10 +1502,9 @@ class StringSplitter(BaseStringSplitter, CustomSplitMapMixin):
         self, line: Line, string_indices: list[int]
     ) -> Iterator[TResult[Line]]:
         LL = line.leaves
-        assert len(string_indices) == 1, (
-            f"{self.__class__.__name__} should only find one match at a time, found"
-            f" {len(string_indices)}"
-        )
+        assert (
+            len(string_indices) == 1
+        ), f"{self.__class__.__name__} should only find one match at a time, found {len(string_indices)}"
         string_idx = string_indices[0]
 
         QUOTE = LL[string_idx].value[-1]
@@ -2185,10 +2183,9 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
         self, line: Line, string_indices: list[int]
     ) -> Iterator[TResult[Line]]:
         LL = line.leaves
-        assert len(string_indices) == 1, (
-            f"{self.__class__.__name__} should only find one match at a time, found"
-            f" {len(string_indices)}"
-        )
+        assert (
+            len(string_indices) == 1
+        ), f"{self.__class__.__name__} should only find one match at a time, found {len(string_indices)}"
         string_idx = string_indices[0]
 
         is_valid_index = is_valid_index_factory(LL)
@@ -2256,10 +2253,9 @@ class StringParenWrapper(BaseStringSplitter, CustomSplitMapMixin):
                 right_leaves.pop()
 
             if old_parens_exist:
-                assert right_leaves and right_leaves[-1].type == token.RPAR, (
-                    "Apparently, old parentheses do NOT exist?!"
-                    f" (left_leaves={left_leaves}, right_leaves={right_leaves})"
-                )
+                assert (
+                    right_leaves and right_leaves[-1].type == token.RPAR
+                ), f"Apparently, old parentheses do NOT exist?! (left_leaves={left_leaves}, right_leaves={right_leaves})"
                 old_rpar_leaf = right_leaves.pop()
             elif right_leaves and right_leaves[-1].type == token.RPAR:
                 # Special case for lambda expressions as dict's value, e.g.:
@@ -2391,7 +2387,12 @@ class StringParser:
         assert leaves[string_idx].type == token.STRING
 
         idx = string_idx + 1
-        while idx < len(leaves) and self._next_state(leaves[idx]):
+        # Cache frequently accessed fields and methods for speed
+        len_leaves = len(leaves)
+        _next_state = self._next_state
+        while idx < len_leaves:
+            if not _next_state(leaves[idx]):
+                break
             idx += 1
         return idx
 
@@ -2408,11 +2409,21 @@ class StringParser:
         Returns:
             True iff @leaf is a part of the string's trailer.
         """
-        # We ignore empty LPAR or RPAR leaves.
-        if is_empty_par(leaf):
+        # Inlining is_empty_par to avoid function call overhead in hot path
+        leaf_type = leaf.type
+        # BEGIN is_empty_par from black.nodes:
+        if (
+            leaf_type == token.LPAR
+            and getattr(leaf, "is_empty_lpar", None)
+            and leaf.is_empty_lpar()
+        ) or (
+            leaf_type == token.RPAR
+            and getattr(leaf, "is_empty_rpar", None)
+            and leaf.is_empty_rpar()
+        ):
             return True
 
-        next_token = leaf.type
+        next_token = leaf_type
         if next_token == token.LPAR:
             self._unmatched_lpars += 1
 
@@ -2427,18 +2438,14 @@ class StringParser:
                     self._state = self.RPAR
         # Otherwise, we use a lookup table to determine the next state.
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
-            else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
-                else:
+            _goto = self._goto
+            # Fast-path single dict lookup, using try/except to avoid double key checks
+            try:
+                self._state = _goto[(current_state, next_token)]
+            except KeyError:
+                try:
+                    self._state = _goto[(current_state, self.DEFAULT_TOKEN)]
+                except KeyError:
                     raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
 
             if self._state == self.DONE:
