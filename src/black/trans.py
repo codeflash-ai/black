@@ -38,6 +38,26 @@ from black.strings import (
 from blib2to3.pgen2 import token
 from blib2to3.pytree import Leaf, Node
 
+_DOT = token.DOT
+
+_NAME = token.NAME
+
+_RPAR = token.RPAR
+
+_RSQB = token.RSQB
+
+_LPAR = token.LPAR
+
+_LSQB = token.LSQB
+
+_PAST_RPARSQ = (_RPAR, _RSQB)
+
+_PAST_LPARLSQB = (_LPAR, _LSQB)
+
+_CUR_RPARSQ = (_RSQB, _RPAR)
+
+_CUR_NAMELPARLSQB = (_NAME, _LPAR, _LSQB)
+
 
 class CannotTransform(Exception):
     """Base class for errors raised by Transformers."""
@@ -222,12 +242,15 @@ def is_expression_chained(chained_leaves: list[Leaf]) -> bool:
     current_leaf = chained_leaves[-1]
     past_leaf = chained_leaves[-2]
 
-    if past_leaf.type == token.NAME:
-        return current_leaf.type in {token.DOT}
-    elif past_leaf.type in {token.RPAR, token.RSQB}:
-        return current_leaf.type in {token.RSQB, token.RPAR}
-    elif past_leaf.type in {token.LPAR, token.LSQB}:
-        return current_leaf.type in {token.NAME, token.LPAR, token.LSQB}
+    past_type = past_leaf.type
+    curr_type = current_leaf.type
+
+    if past_type == _NAME:
+        return curr_type == _DOT
+    elif past_type in _PAST_RPARSQ:
+        return curr_type in _CUR_RPARSQ
+    elif past_type in _PAST_LPARLSQB:
+        return curr_type in _CUR_NAMELPARLSQB
     else:
         return False
 
