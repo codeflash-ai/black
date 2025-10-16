@@ -853,7 +853,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
@@ -880,16 +885,17 @@ def is_import(leaf: Leaf) -> bool:
 
 def is_with_or_async_with_stmt(leaf: Leaf) -> bool:
     """Return True if the given leaf starts a with or async with statement."""
-    return bool(
-        leaf.type == token.NAME
-        and leaf.value == "with"
-        and leaf.parent
-        and leaf.parent.type == syms.with_stmt
-    ) or bool(
-        leaf.type == token.ASYNC
-        and leaf.next_sibling
-        and leaf.next_sibling.type == syms.with_stmt
-    )
+    # Optimize: Short-circuit returns, avoid bool() on already-boolean expressions
+    if leaf.type == token.NAME:
+        if leaf.value == "with":
+            parent = leaf.parent
+            if parent is not None and parent.type == syms.with_stmt:
+                return True
+    elif leaf.type == token.ASYNC:
+        next_sibling = leaf.next_sibling
+        if next_sibling is not None and next_sibling.type == syms.with_stmt:
+            return True
+    return False
 
 
 def is_async_stmt_or_funcdef(leaf: Leaf) -> bool:
