@@ -112,6 +112,9 @@ def remove_trailing_semicolon(src: str) -> tuple[str, bool]:
     """
     from tokenize_rt import reversed_enumerate, src_to_tokens, tokens_to_src
 
+    if ';' not in src:
+        return src, False
+
     tokens = src_to_tokens(src)
     trailing_semicolon = False
     for idx, token in reversed_enumerate(tokens):
