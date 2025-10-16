@@ -166,6 +166,13 @@ def parse_req_python_version(requires_python: str) -> Optional[list[TargetVersio
     If parsing fails, will raise a packaging.version.InvalidVersion error.
     If the parsed version cannot be mapped to a valid TargetVersion, returns None.
     """
+    if requires_python.startswith("3."):
+        parts = requires_python.split(".")
+        if len(parts) >= 2 and parts[1].isdigit():
+            try:
+                return [TargetVersion(int(parts[1]))]
+            except (ValueError, IndexError):
+                return None
     version = Version(requires_python)
     if version.release[0] != 3:
         return None
