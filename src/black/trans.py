@@ -2390,8 +2390,16 @@ class StringParser:
         """
         assert leaves[string_idx].type == token.STRING
 
+        # Cache for speed
+        _next_state = self._next_state
+        len_leaves = len(leaves)
         idx = string_idx + 1
-        while idx < len(leaves) and self._next_state(leaves[idx]):
+
+        # Hoist loop condition and method call for minor speedup
+        while idx < len_leaves:
+            # Avoid method call if not needed
+            if not _next_state(leaves[idx]):
+                break
             idx += 1
         return idx
 
@@ -2408,42 +2416,51 @@ class StringParser:
         Returns:
             True iff @leaf is a part of the string's trailer.
         """
-        # We ignore empty LPAR or RPAR leaves.
-        if is_empty_par(leaf):
+        # Move these lookups out of the fast path for minor micro-optimization
+        LPAR = token.LPAR
+        RPAR = token.RPAR
+        DONE = self.DONE
+        DEFAULT_TOKEN = self.DEFAULT_TOKEN
+        goto = self._goto
+
+        # The state fields are updated and mutated each loop.
+        current_state = self._state
+        unmatched_lpars = self._unmatched_lpars
+
+        # Inline the is_empty_par check for small speedup (reduces function call overhead in hot path)
+        leaf_type = leaf.type
+        if (leaf_type == LPAR and leaf.value == "") or (
+            leaf_type == RPAR and leaf.value == ""
+        ):
             return True
 
-        next_token = leaf.type
-        if next_token == token.LPAR:
-            self._unmatched_lpars += 1
+        next_token = leaf_type
 
-        current_state = self._state
+        if next_token == LPAR:
+            unmatched_lpars += 1
 
-        # The LPAR parser state is a special case. We will return True until we
-        # find the matching RPAR token.
+        # In the LPAR parse state, look for RPAR to close nesting
         if current_state == self.LPAR:
-            if next_token == token.RPAR:
-                self._unmatched_lpars -= 1
-                if self._unmatched_lpars == 0:
+            if next_token == RPAR:
+                unmatched_lpars -= 1
+                if unmatched_lpars == 0:
                     self._state = self.RPAR
-        # Otherwise, we use a lookup table to determine the next state.
+            self._unmatched_lpars = unmatched_lpars
         else:
-            # If the lookup table matches the current state to the next
-            # token, we use the lookup table.
-            if (current_state, next_token) in self._goto:
-                self._state = self._goto[current_state, next_token]
+            key = (current_state, next_token)
+            s = goto.get(key)
+            if s is not None:
+                self._state = s
             else:
-                # Otherwise, we check if a the current state was assigned a
-                # default.
-                if (current_state, self.DEFAULT_TOKEN) in self._goto:
-                    self._state = self._goto[current_state, self.DEFAULT_TOKEN]
-                # If no default has been assigned, then this parser has a logic
-                # error.
+                default_key = (current_state, DEFAULT_TOKEN)
+                s = goto.get(default_key)
+                if s is not None:
+                    self._state = s
                 else:
                     raise RuntimeError(f"{self.__class__.__name__} LOGIC ERROR!")
-
-            if self._state == self.DONE:
+            if self._state == DONE:
                 return False
-
+            self._unmatched_lpars = unmatched_lpars  # always update
         return True
 
 
