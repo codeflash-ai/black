@@ -443,7 +443,11 @@ def preceding_leaf(node: Optional[LN]) -> Optional[Leaf]:
                 return res
 
             try:
-                return list(res.leaves())[-1]
+                # Find the last leaf by traversing to the rightmost descendant
+                current = res
+                while hasattr(current, "children") and current.children:
+                    current = current.children[-1]
+                return current
 
             except IndexError:
                 return None
@@ -853,7 +857,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
