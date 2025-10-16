@@ -853,7 +853,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
@@ -911,8 +916,10 @@ def is_type_comment(leaf: Leaf) -> bool:
     use `is_type_ignore_comment`). Note that general type comments are no longer
     used in modern version of Python, this function may be deprecated in the future."""
     t = leaf.type
-    v = leaf.value
-    return t in {token.COMMENT, STANDALONE_COMMENT} and v.startswith("# type:")
+    # Fast path for COMMENT (most likely, so test it first), then STANDALONE_COMMENT
+    if t == token.COMMENT or t == STANDALONE_COMMENT:
+        return leaf.value.startswith("# type:")
+    return False
 
 
 def is_type_ignore_comment(leaf: Leaf) -> bool:
