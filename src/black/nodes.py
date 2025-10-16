@@ -20,6 +20,8 @@ from blib2to3 import pygram
 from blib2to3.pgen2 import token
 from blib2to3.pytree import NL, Leaf, Node, type_repr
 
+_TYPE_COMMENT_TOKENS = {token.COMMENT, 153}
+
 pygram.initialize(CACHE_DIR)
 syms: Final = pygram.python_symbols
 
@@ -853,7 +855,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
@@ -918,8 +925,10 @@ def is_type_comment(leaf: Leaf) -> bool:
 def is_type_ignore_comment(leaf: Leaf) -> bool:
     """Return True if the given leaf is a type comment with ignore annotation."""
     t = leaf.type
-    v = leaf.value
-    return t in {token.COMMENT, STANDALONE_COMMENT} and is_type_ignore_comment_string(v)
+    if t in _TYPE_COMMENT_TOKENS:
+        # Avoid unnecessary attribute access if type does not match
+        return leaf.value.startswith("# type: ignore")
+    return False
 
 
 def is_type_ignore_comment_string(value: str) -> bool:
