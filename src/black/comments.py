@@ -18,6 +18,10 @@ from black.nodes import (
 from blib2to3.pgen2 import token
 from blib2to3.pytree import Leaf, Node
 
+_RE_SPLIT_NEWLINE = re.compile(r"\r?\n")
+
+_RE_LINE = re.compile(r"^(\s*)(\S.*|)$")
+
 # types
 LN = Union[Leaf, Node]
 
@@ -80,7 +84,7 @@ def generate_comments(leaf: LN) -> Iterator[Leaf]:
 @lru_cache(maxsize=4096)
 def list_comments(prefix: str, *, is_endmarker: bool) -> list[ProtoComment]:
     """Return a list of :class:`ProtoComment` objects parsed from the given `prefix`."""
-    result: list[ProtoComment] = []
+    result: list["ProtoComment"] = []
     if not prefix or "#" not in prefix:
         return result
 
@@ -88,19 +92,19 @@ def list_comments(prefix: str, *, is_endmarker: bool) -> list[ProtoComment]:
     nlines = 0
     ignored_lines = 0
     form_feed = False
-    for index, full_line in enumerate(re.split("\r?\n", prefix)):
+    # Avoid per-line regex compilation (reuse pre-compiled patterns)
+    split_lines = _RE_SPLIT_NEWLINE.split(prefix)
+    for index, full_line in enumerate(split_lines):
         consumed += len(full_line) + 1  # adding the length of the split '\n'
-        match = re.match(r"^(\s*)(\S.*|)$", full_line)
+        match = _RE_LINE.match(full_line)
         assert match
         whitespace, line = match.groups()
         if not line:
             nlines += 1
             if "\f" in full_line:
                 form_feed = True
+            continue  # Optimization: skip to next line if it's empty (was missing)
         if not line.startswith("#"):
-            # Escaped newlines outside of a comment are not really newlines at
-            # all. We treat a single-line comment following an escaped newline
-            # as a simple trailing comment.
             if line.endswith("\\"):
                 ignored_lines += 1
             continue
@@ -122,6 +126,7 @@ def list_comments(prefix: str, *, is_endmarker: bool) -> list[ProtoComment]:
         )
         form_feed = False
         nlines = 0
+
     return result
 
 
