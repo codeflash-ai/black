@@ -399,18 +399,15 @@ def _contains_fmt_skip_comment(comment_line: str, mode: Mode) -> bool:
       # noqa:XXX # fmt:skip # a nice line  <-- multiple comments (Preview)
       # pylint:XXX; fmt:skip               <-- list of comments (; separated, Preview)
     """
-    semantic_comment_blocks = [
-        comment_line,
-        *[
-            _COMMENT_PREFIX + comment.strip()
-            for comment in comment_line.split(_COMMENT_PREFIX)[1:]
-        ],
-        *[
-            _COMMENT_PREFIX + comment.strip()
-            for comment in comment_line.strip(_COMMENT_PREFIX).split(
-                _COMMENT_LIST_SEPARATOR
-            )
-        ],
-    ]
+    if comment_line in FMT_SKIP:
+        return True
 
-    return any(comment in FMT_SKIP for comment in semantic_comment_blocks)
+    for comment in comment_line.split(_COMMENT_PREFIX)[1:]:
+        if _COMMENT_PREFIX + comment.strip() in FMT_SKIP:
+            return True
+
+    for comment in comment_line.strip(_COMMENT_PREFIX).split(_COMMENT_LIST_SEPARATOR):
+        if _COMMENT_PREFIX + comment.strip() in FMT_SKIP:
+            return True
+
+    return False
