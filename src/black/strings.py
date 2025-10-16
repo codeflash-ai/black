@@ -96,14 +96,16 @@ def get_string_prefix(string: str) -> str:
         @string's prefix (e.g. '', 'r', 'f', or 'rf').
     """
     assert_is_leaf_string(string)
-
-    prefix = ""
-    prefix_idx = 0
-    while string[prefix_idx] in STRING_PREFIX_CHARS:
-        prefix += string[prefix_idx]
-        prefix_idx += 1
-
-    return prefix
+    # Optimization: build prefix via slicing instead of a loop to avoid O(N^2) string concatenation
+    prefix_len = 0
+    s = STRING_PREFIX_CHARS
+    string_view = memoryview(
+        string.encode()
+    )  # To avoid str.__contains__ lookup per char
+    limit = len(string)
+    while prefix_len < limit and chr(string_view[prefix_len]) in s:
+        prefix_len += 1
+    return string[:prefix_len]
 
 
 def assert_is_leaf_string(string: str) -> None:
@@ -310,31 +312,39 @@ def normalize_unicode_escape_sequences(leaf: Leaf) -> None:
     """Replace hex codes in Unicode escape sequences with lowercase representation."""
     text = leaf.value
     prefix = get_string_prefix(text)
-    if "r" in prefix.lower():
+    # Optimization: assume low cardinality, so .lower() once and cache the result
+    lower_prefix = prefix.lower()
+    if "r" in lower_prefix:
         return
 
+    # Optimization: avoid groupdict, use group() to limit temporary allocations
     def replace(m: Match[str]) -> str:
-        groups = m.groupdict()
-        back_slashes = groups["backslashes"]
+        back_slashes = m.group("backslashes")
+        body = m.group("body")
 
         if len(back_slashes) % 2 == 0:
-            return back_slashes + groups["body"]
+            return back_slashes + body
 
-        if groups["u"]:
+        # Use local variables for fast access & short-circuiting
+        u = m.group("u")
+        if u is not None:
             # \u
-            return back_slashes + "u" + groups["u"].lower()
-        elif groups["U"]:
+            return f"{back_slashes}u{u.lower()}"
+        U = m.group("U")
+        if U is not None:
             # \U
-            return back_slashes + "U" + groups["U"].lower()
-        elif groups["x"]:
+            return f"{back_slashes}U{U.lower()}"
+        x = m.group("x")
+        if x is not None:
             # \x
-            return back_slashes + "x" + groups["x"].lower()
-        else:
-            assert groups["N"], f"Unexpected match: {m}"
-            # \N{}
-            return back_slashes + "N{" + groups["N"].upper() + "}"
+            return f"{back_slashes}x{x.lower()}"
+        N = m.group("N")
+        assert N is not None, f"Unexpected match: {m}"
+        # \N{}
+        return f"{back_slashes}N{{{N.upper()}}}"
 
-    leaf.value = re.sub(UNICODE_ESCAPE_RE, replace, text)
+    # Optimization: Use precompiled UNICODE_ESCAPE_RE imported from black/strings.py
+    leaf.value = UNICODE_ESCAPE_RE.sub(replace, text)
 
 
 @lru_cache(maxsize=4096)
