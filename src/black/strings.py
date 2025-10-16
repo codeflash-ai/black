@@ -4,12 +4,15 @@ Simple formatting on strings. Further string formatting code is in trans.py.
 
 import re
 import sys
+from bisect import bisect_right
 from functools import lru_cache
 from re import Match, Pattern
 from typing import Final
 
 from black._width_table import WIDTH_TABLE
 from blib2to3.pytree import Leaf
+
+_CODEPOINT_STARTS = [start for start, _, _ in WIDTH_TABLE]
 
 STRING_PREFIX_CHARS: Final = "furbFURB"  # All possible string prefix characters.
 STRING_PREFIX_RE: Final = re.compile(
@@ -345,22 +348,13 @@ def char_width(char: str) -> int:
     Full width characters are counted as 2, while half width characters are
     counted as 1.  Also control characters are counted as 0.
     """
-    table = WIDTH_TABLE
     codepoint = ord(char)
-    highest = len(table) - 1
-    lowest = 0
-    idx = highest // 2
-    while True:
-        start_codepoint, end_codepoint, width = table[idx]
-        if codepoint < start_codepoint:
-            highest = idx - 1
-        elif codepoint > end_codepoint:
-            lowest = idx + 1
-        else:
-            return 0 if width < 0 else width
-        if highest < lowest:
-            break
-        idx = (highest + lowest) // 2
+    idx = bisect_right(_CODEPOINT_STARTS, codepoint) - 1
+    if idx < 0:
+        return 1
+    start_codepoint, end_codepoint, width = WIDTH_TABLE[idx]
+    if start_codepoint <= codepoint <= end_codepoint:
+        return 0 if width < 0 else width
     return 1
 
 
