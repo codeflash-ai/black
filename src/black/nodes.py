@@ -853,7 +853,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
@@ -898,11 +903,11 @@ def is_async_stmt_or_funcdef(leaf: Leaf) -> bool:
     Note that `async def` can be either an `async_stmt` or `async_funcdef`,
     the latter is used when it has decorators.
     """
-    return bool(
-        leaf.type == token.ASYNC
-        and leaf.parent
-        and leaf.parent.type in {syms.async_stmt, syms.async_funcdef}
-    )
+    parent = leaf.parent
+    if leaf.type != token.ASYNC or parent is None:
+        return False
+    parent_type = parent.type
+    return parent_type == syms.async_stmt or parent_type == syms.async_funcdef
 
 
 def is_type_comment(leaf: Leaf) -> bool:
