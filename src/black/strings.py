@@ -97,13 +97,13 @@ def get_string_prefix(string: str) -> str:
     """
     assert_is_leaf_string(string)
 
-    prefix = ""
-    prefix_idx = 0
-    while string[prefix_idx] in STRING_PREFIX_CHARS:
-        prefix += string[prefix_idx]
-        prefix_idx += 1
+    # Optimization: Use a single pass with index and avoid string concatenation
+    prefix_len = 0
+    string_len = len(string)
+    while prefix_len < string_len and string[prefix_len] in STRING_PREFIX_CHARS:
+        prefix_len += 1
 
-    return prefix
+    return string[:prefix_len]
 
 
 def assert_is_leaf_string(string: str) -> None:
