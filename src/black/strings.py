@@ -11,6 +11,8 @@ from typing import Final
 from black._width_table import WIDTH_TABLE
 from blib2to3.pytree import Leaf
 
+_cached_pattern_dict: dict[str, Pattern[str]] = {}
+
 STRING_PREFIX_CHARS: Final = "furbFURB"  # All possible string prefix characters.
 STRING_PREFIX_RE: Final = re.compile(
     r"^([" + STRING_PREFIX_CHARS + r"]*)(.*)$", re.DOTALL
@@ -162,9 +164,13 @@ def normalize_string_prefix(s: str) -> str:
 # Re(gex) does actually cache patterns internally but this still improves
 # performance on a long list literal of strings by 5-9% since lru_cache's
 # caching overhead is much lower.
-@lru_cache(maxsize=64)
 def _cached_compile(pattern: str) -> Pattern[str]:
-    return re.compile(pattern)
+    try:
+        return _cached_pattern_dict[pattern]
+    except KeyError:
+        compiled = re.compile(pattern)
+        _cached_pattern_dict[pattern] = compiled
+        return compiled
 
 
 def normalize_string_quotes(s: str) -> str:
