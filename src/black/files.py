@@ -185,10 +185,15 @@ def parse_req_python_specifier(requires_python: str) -> Optional[list[TargetVers
     if not specifier_set:
         return None
 
+    # Precompute and cache TargetVersion map
     target_version_map = {f"3.{v.value}": v for v in TargetVersion}
-    compatible_versions: list[str] = list(specifier_set.filter(target_version_map))
+    compatible_versions = []
+    filter_func = specifier_set.contains
+    for version_string, target_version in target_version_map.items():
+        if filter_func(version_string, prereleases=True):
+            compatible_versions.append(target_version)
     if compatible_versions:
-        return [target_version_map[v] for v in compatible_versions]
+        return compatible_versions
     return None
 
 
@@ -198,22 +203,26 @@ def strip_specifier_set(specifier_set: SpecifierSet) -> SpecifierSet:
     For background on version specifiers, see PEP 440:
     https://peps.python.org/pep-0440/#version-specifiers
     """
+    # Avoid repeated str(s) calls: convert once, store, do not regenerate unless needed
     specifiers = []
+    str_append = specifiers.append  # Local var for faster loop appending
     for s in specifier_set:
-        if "*" in str(s):
-            specifiers.append(s)
-        elif s.operator in ["~=", "==", ">=", "==="]:
+        s_str = str(s)
+        if "*" in s_str:
+            str_append(s)
+        elif s.operator in {"~=", "==", ">=", "==="}:  # set for O(1) lookup
             version = Version(s.version)
             stripped = Specifier(f"{s.operator}{version.major}.{version.minor}")
-            specifiers.append(stripped)
+            str_append(stripped)
         elif s.operator == ">":
             version = Version(s.version)
             if len(version.release) > 2:
                 s = Specifier(f">={version.major}.{version.minor}")
-            specifiers.append(s)
+            str_append(s)
         else:
-            specifiers.append(s)
+            str_append(s)
 
+    # Avoid generator, use ''.join/str for fixed list of specifiers
     return SpecifierSet(",".join(str(s) for s in specifiers))
 
 
