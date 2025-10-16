@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -596,18 +598,32 @@ def is_empty_tuple(node: LN) -> bool:
 
 def is_one_tuple(node: LN) -> bool:
     """Return True if `node` holds a tuple with one element, with or without parens."""
-    if node.type == syms.atom:
-        gexp = unwrap_singleton_parenthesis(node)
-        if gexp is None or gexp.type != syms.testlist_gexp:
+    node_type = node.type
+
+    if node_type == syms.atom:
+        # Inline unwrap_singleton_parenthesis for improved locality and avoid extra function call overhead
+        children = node.children
+        if len(children) != 3:
             return False
 
-        return len(gexp.children) == 2 and gexp.children[1].type == token.COMMA
+        lpar, wrapped, rpar = children
+        if lpar.type != token.LPAR or rpar.type != token.RPAR:
+            return False
 
-    return (
-        node.type in IMPLICIT_TUPLE
-        and len(node.children) == 2
-        and node.children[1].type == token.COMMA
-    )
+        # `wrapped` in this context of atom ( ... ) is usually a testlist_gexp
+        gexp = wrapped
+        if gexp.type != syms.testlist_gexp:
+            return False
+
+        gexp_children = gexp.children
+        return len(gexp_children) == 2 and gexp_children[1].type == token.COMMA
+
+    # Fast path: test membership in set, then use local variables to minimize repeated attribute lookups
+    if node_type in IMPLICIT_TUPLE:
+        children = node.children
+        return len(children) == 2 and children[1].type == token.COMMA
+
+    return False
 
 
 def is_tuple_containing_walrus(node: LN) -> bool:
@@ -853,7 +869,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
