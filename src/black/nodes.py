@@ -6,6 +6,8 @@ import sys
 from collections.abc import Iterator
 from typing import Final, Generic, Literal, Optional, TypeVar, Union
 
+from typing_extensions import TypeGuard
+
 if sys.version_info >= (3, 10):
     from typing import TypeGuard
 else:
@@ -19,6 +21,8 @@ from black.strings import get_string_prefix, has_triple_quotes
 from blib2to3 import pygram
 from blib2to3.pgen2 import token
 from blib2to3.pytree import NL, Leaf, Node, type_repr
+
+_LPAR = token.LPAR
 
 pygram.initialize(CACHE_DIR)
 syms: Final = pygram.python_symbols
@@ -853,7 +857,12 @@ def is_atom_with_invisible_parens(node: LN) -> bool:
 
 
 def is_empty_par(leaf: Leaf) -> bool:
-    return is_empty_lpar(leaf) or is_empty_rpar(leaf)
+    # Inline is_empty_lpar and is_empty_rpar logic to remove extra function call overhead
+    leaf_type = leaf.type
+    val = leaf.value
+    return (leaf_type == token.LPAR and val == "") or (
+        leaf_type == token.RPAR and val == ""
+    )
 
 
 def is_empty_lpar(leaf: Leaf) -> bool:
@@ -919,7 +928,9 @@ def is_type_ignore_comment(leaf: Leaf) -> bool:
     """Return True if the given leaf is a type comment with ignore annotation."""
     t = leaf.type
     v = leaf.value
-    return t in {token.COMMENT, STANDALONE_COMMENT} and is_type_ignore_comment_string(v)
+    if t == token.COMMENT or t == STANDALONE_COMMENT:
+        return v.startswith("# type: ignore")
+    return False
 
 
 def is_type_ignore_comment_string(value: str) -> bool:
@@ -977,7 +988,7 @@ def is_name_token(nl: NL) -> TypeGuard[Leaf]:
 
 
 def is_lpar_token(nl: NL) -> TypeGuard[Leaf]:
-    return nl.type == token.LPAR
+    return nl.type == _LPAR
 
 
 def is_rpar_token(nl: NL) -> TypeGuard[Leaf]:
